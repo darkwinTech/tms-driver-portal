@@ -75,14 +75,14 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
   </NavLink>
 ))}
       </nav>
-      <div className="px-6 py-4 border-t border-gray-800 space-y-2">
+      {/* <div className="px-6 py-4 border-t border-gray-800 space-y-2">
         <button
           onClick={handleResetDemoData}
           className="text-xs text-gray-400 hover:text-white"
         >
           Reset demo data
         </button>
-      </div>
+      </div> */}
     </aside>
     </>
   );
