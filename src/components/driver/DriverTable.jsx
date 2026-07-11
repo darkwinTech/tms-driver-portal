@@ -99,6 +99,7 @@ export default function DriverTable({ drivers, setDrivers, readOnly = false }) {
                     ) : (
                       <input
                         type={f.type || 'text'}
+                        required={f.required}
                         value={row[f.key] || ''}
                         placeholder={f.placeholder || ''}
                         onChange={(e) => updateCell(idx, f.key, e.target.value)}

@@ -76,6 +76,43 @@ export default function NewRequest() {
     // Disable Driver: driver info is read-only, carried through unchanged
     return selectedDrivers.map(({ original }) => ({ ...original, driverStatus: 'Disable Requested' }));
   }
+  function validateDrivers(drivers) {
+  const errors = [];
+
+  const requiredKeys = [
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'customerGroup',
+    'driverClass',
+    'operatingHours',
+    'poNumber',
+    'poExpiry',
+  ];
+
+  drivers.forEach((driver, index) => {
+    const rowErrors = [];
+
+    DRIVER_FIELDS.forEach((field) => {
+      if (
+        requiredKeys.includes(field.key) &&
+        (!driver[field.key] || String(driver[field.key]).trim() === '')
+      ) {
+        rowErrors.push(`${field.label} is required`);
+      }
+    });
+
+    if (rowErrors.length) {
+      errors.push({
+        row: index + 1,
+        errors: rowErrors,
+      });
+    }
+  });
+
+  return errors;
+}
 
   async function handleSubmit() {
     setError('');
@@ -83,6 +120,13 @@ export default function NewRequest() {
     setSubmitting(true);
     try {
       const drivers = buildDriversPayload();
+      const validationErrors = validateDrivers(drivers);
+
+      if (validationErrors.length > 0) {
+        setFieldErrors(validationErrors);
+        setSubmitting(false);
+        return;
+      }
 
       if (requestTypeName === 'Disable Driver' && !effectiveDate) {
         setError('Effective Date is required');

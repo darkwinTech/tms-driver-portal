@@ -12,11 +12,11 @@ export const DRIVER_FIELDS = [
   { key: 'email', label: 'Email Address', required: true },
   { key: 'phone', label: 'Mobile Number', required: true },
   { key: 'role', label: 'Role', fixed: true, defaultValue: 'Privileged User' },
-  { key: 'customerGroup', label: 'Group / Customer', placeholder: 'e.g. CUEU/ARCO' },
-  { key: 'driverClass', label: 'Driver Class', placeholder: 'e.g. 30Ton_Drivers' },
-  { key: 'operatingHours', label: 'Operating Hours' },
-  { key: 'poNumber', label: 'PO Number' },
-  { key: 'poExpiry', label: 'PO Expiry Date', type: 'date' },
+  { key: 'customerGroup', label: 'Group / Customer', placeholder: 'e.g. CUEU/ARCO', required: true },
+  { key: 'driverClass', label: 'Driver Class', placeholder: 'e.g. 30Ton_Drivers', required: true},
+  { key: 'operatingHours', label: 'Operating Hours', required: true},
+  { key: 'poNumber', label: 'PO Number', required: true},
+  { key: 'poExpiry', label: 'PO Expiry Date', type: 'date', required: true},
 ];
 
 export const EMPTY_DRIVER = DRIVER_FIELDS.reduce((acc, f) => {
