@@ -48,7 +48,7 @@ export default function Navbar({ onMenuClick = () => {} }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <h1 className="text-lg font-semibold text-gray-800 truncate">TMS Driver Portal</h1>
+        <h1 className="text-lg font-semibold text-gray-800 truncate">TMS Driver Management Portal</h1>
       </div>
       <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <div className="relative" ref={dropdownRef}>
