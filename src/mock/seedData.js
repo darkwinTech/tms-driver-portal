@@ -1,11 +1,11 @@
-// Initial dummy dataset for the frontend-only (Phase 1) build.
-// Mirrors the 10-table schema from the full-stack version, just held
-// in plain JS objects/arrays instead of MySQL tables.
+// Initial dummy dataset for the frontend 
+// 9 table schema in plain JS objects/arrays instead of MySQL tables.
 
 export const DEMO_PASSWORD = 'Password123!';
 
 export function buildSeed() {
   const now = new Date();
+  // Generates dates relative to today
   const daysAgo = (n) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
 
   const users = [
@@ -73,8 +73,7 @@ export function buildSeed() {
 
   // Master list of already-existing/active drivers in the system (AD / DCT).
   // Modify Driver and Disable Driver requests search against this instead of
-  // starting from a blank form, since you're acting on a driver that already
-  // exists rather than creating a new one.
+
   const driverDirectory = [
     { username: 'ahmed.kabbani', firstName: 'Ahmed', lastName: 'Kabbani', email: 'ahmed.kabbani@asmo.com', phone: '0552112332', role: 'Privileged User', customerGroup: 'ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '481221221', poExpiry: '2026-12-20', status: 'Active' },
     { username: 'mohammed.saeed', firstName: 'Mohammed', lastName: 'Saeed', email: 'mohammed.saeed@asmo.com', phone: '0551234567', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '4821211244768', poExpiry: '2026-11-30', status: 'Active' },
@@ -85,6 +84,7 @@ export function buildSeed() {
     { username: 'nasser.qahtani', firstName: 'Nasser', lastName: 'Qahtani', email: 'nasser.qahtani@asmo.com', phone: '0509988776', role: 'Privileged User', customerGroup: 'ARCO', driverClass: '20Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '4821211244768', poExpiry: '2026-03-01', status: 'Inactive' },
   ];
 
+  // Used later when user attach files
   const attachments = [];
 
   const notifications = [
