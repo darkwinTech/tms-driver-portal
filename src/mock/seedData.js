@@ -9,7 +9,7 @@ export function buildSeed() {
   const daysAgo = (n) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
 
   const users = [
-    { id: 1, employeeId: 'EMP001', fullName: 'Ahmed Alqabana', email: 'ahmed.alqabana@asmo.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
+    { id: 1, employeeId: 'EMP001', fullName: 'FedX', email: 'fedx@example.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
     { id: 2, employeeId: 'EMP002', fullName: 'Hani Alturaiki', email: 'hani.alturaiki@asmo.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
     { id: 3, employeeId: 'EMP003', fullName: 'IT TMS Processor', email: 'it.tms@asmo.com', department: 'IT Solutions', role: 'Processor', managerId: null, isActive: true },
     { id: 4, employeeId: 'EMP004', fullName: 'AD Team Processor', email: 'ad.team@asmo.com', department: 'Active Directory', role: 'Processor', managerId: null, isActive: true },
