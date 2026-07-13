@@ -22,17 +22,17 @@ export async function listNotifications() {
   return { data: rows };
 }
 
-export async function markNotificationRead(id) {
-  await delay(100);
-  const user = currentUser();
-  const db = getDb();
-  const notification = db.notifications.find((n) => n.id === Number(id) && n.userId === user.id);
-  if (notification) {
-    notification.isRead = true;
-    saveDb();
-  }
-  return { data: notification };
-}
+// export async function markNotificationRead(id) {
+//   await delay(100);
+//   const user = currentUser();
+//   const db = getDb();
+//   const notification = db.notifications.find((n) => n.id === Number(id) && n.userId === user.id);
+//   if (notification) {
+//     notification.isRead = true;
+//     saveDb();
+//   }
+//   return { data: notification };
+// }
 
 export async function markAllNotificationsRead() {
   await delay(100);
