@@ -9,7 +9,8 @@ export function findUser(id) {
   return getDb().users.find((u) => u.id === id) || null;
 }
 
-// Lightweight shape used in list views (dashboard "recent requests", queue table, reports)
+/* Lightweight shape used in list views (dashboard "recent requests", queue table, reports)
+    This is used for pages like the dashboard and request queue, where we only need a summary of the request without all the details. */
 export function hydrateRequestSummary(reqRow) {
   const db = getDb();
   return {
@@ -22,7 +23,8 @@ export function hydrateRequestSummary(reqRow) {
   };
 }
 
-// Full shape used on Request Details / Process Request pages
+/* Full shape used on Request Details / Process Request pages
+   Returns the complete request with drivers, attachments, and history for detail pages. */
 export function hydrateRequestFull(reqRow) {
   const db = getDb();
 
