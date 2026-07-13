@@ -53,14 +53,14 @@ export default function ExcelUploadPanel({ onParsed }) {
           onClick={handleDownloadTemplate}
           className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-100"
         >
-          ⬇ Download Template
+          Download Template
         </button>
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           className="text-sm px-3 py-1.5 rounded-md bg-primary-600 text-white hover:bg-primary-700"
         >
-          ⬆ Upload Filled Template
+          Upload Filled Template
         </button>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleFileChange} />
         {fileName && <span className="text-sm text-gray-500">{fileName}</span>}
