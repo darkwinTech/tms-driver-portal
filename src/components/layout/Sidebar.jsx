@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { resetDb } from '../../mock/db.js';
+import logo from '/logo.png'
 
 const requesterLinks = [
   { to: '/', label: 'Dashboard' },
@@ -38,9 +39,17 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-      <div className="h-16 flex items-center px-6 font-bold text-lg tracking-wide border-b border-gray-800">
-        TMS<span className="text-primary-500">.</span>
-      </div>
+      <NavLink
+        to="/"
+        onClick={onClose}
+        className="h-16 flex items-center justify-center px-4 border-b border-gray-800"
+        >
+        <img
+          src={logo}
+          alt="ASMO Logo"
+          className="h-12 w-auto object-contain cursor-pointer"
+        />
+      </NavLink>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {/* {links.map((link) => (
           <NavLink

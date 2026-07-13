@@ -18,12 +18,22 @@ const COLUMNS = [
 
 export function buildTemplateBlob() {
   const headerRow = COLUMNS.map((c) => c.header);
-  const exampleRow = [
-    'Ali', 'Hassan', 'Ali.hassan@asmo.com', '0552112332',
-    'CUEU/ARCO', '30Ton_Drivers', 'Sun,Mon,Tue,Wed,Thu 1:00 PM-9:00 PM', '4821211244768', '2026-05-19',
-  ];
+  const instructionRow = [
+  'Replace with First Name',
+  'Replace with Last Name',
+  'Replace with Email Address',
+  'Replace with Mobile Number',
+  'Replace with Group / Customer',
+  'Replace with Driver Class',
+  'Replace with Operating Hours',
+  'Replace with PO Number',
+  'Replace with Expiry Date (YYYY-MM-DD)',
+];
 
-  const worksheet = XLSX.utils.aoa_to_sheet([headerRow, exampleRow]);
+  const worksheet = XLSX.utils.aoa_to_sheet([
+  headerRow,
+  instructionRow,
+]);
   worksheet['!cols'] = COLUMNS.map(() => ({ wch: 24 }));
 
   const workbook = XLSX.utils.book_new();
@@ -52,27 +62,46 @@ export function parseDriverExcelFile(file) {
         const errors = [];
 
         rawRows.forEach((raw, idx) => {
-          const row = {};
-          Object.entries(raw).forEach(([header, value]) => {
-            const key = headerToKey[header.trim()];
-            if (key) row[key] = typeof value === 'string' ? value.trim() : value;
-          });
-
-          const hasAnyValue = Object.values(row).some((v) => v !== '' && v !== undefined && v !== null);
-          if (!hasAnyValue) return;
-
-          row.role = 'Privileged User';
-
-          const rowErrors = validateDriverRow(row);
-          if (rowErrors.length) errors.push({ row: idx + 2, errors: rowErrors });
-          drivers.push(row);
-        });
+ 
+              // Skip the template instruction row
+              if (idx === 0) return;
+            
+              const row = {};
+            
+              Object.entries(raw).forEach(([header, value]) => {
+                const key = headerToKey[header.trim()];
+                if (key) {
+                  row[key] = typeof value === 'string'
+                    ? value.trim()
+                    : value;
+                }
+              });
+            
+              const hasAnyValue = Object.values(row).some(
+                (v) => v !== '' && v !== undefined && v !== null
+              );
+            
+              if (!hasAnyValue) return;
+            
+              row.role = 'Privileged User';
+            
+              const rowErrors = validateDriverRow(row);
+            
+              if (rowErrors.length) {
+                errors.push({
+                  row: idx + 2,
+                  errors: rowErrors,
+                });
+              }
+            
+              drivers.push(row);
+            });
 
         resolve({ drivers, errors });
-      } catch (err) {
-        reject(err);
-      }
-    };
+          } catch (err) {
+            reject(err);
+          }
+        };
     reader.readAsArrayBuffer(file);
   });
 }
