@@ -1,6 +1,7 @@
 // Mirrors backend/src/utils/validators.js
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_REGEX = /^\+?[0-9\s-]{7,15}$/;
+// const PHONE_REGEX = /^\+?[0-9\s-]{7,15}$/;
+const PHONE_REGEX = /^05\d{8}$/;
 
 export function isValidEmail(value) {
   return typeof value === 'string' && EMAIL_REGEX.test(value.trim());
