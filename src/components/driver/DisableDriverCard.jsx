@@ -15,8 +15,8 @@ export default function DisableDriverCard({ driver, onRemove }) {
           <p className="text-xs text-gray-500">Username</p>
           <p className="font-medium text-gray-800">{driver.username}</p>
         </div>
-        <button type="button" onClick={onRemove} className="text-red-500 hover:text-red-700 text-sm">
-          ✕ Remove
+        <button type="button" onClick={onRemove} className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white px-3 py-1 rounded text-sm transition">
+           Remove
         </button>
       </div>
 
