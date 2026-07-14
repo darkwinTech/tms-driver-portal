@@ -43,7 +43,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-              placeholder="you@asmo.com"
+              placeholder="you@example.com"
             />
           </div>
           <div>

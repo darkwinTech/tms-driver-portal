@@ -98,3 +98,5 @@ to it:
 
 No changes are needed anywhere else — every page/component imports from
 `src/api/*.js` by function name only, never by data shape or implementation.
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
