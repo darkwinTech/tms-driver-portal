@@ -45,17 +45,23 @@ export default function ProcessRequest() {
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAction(target) {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await updateStatus(id, target, remarks);
-      setRequest(res.data);
-      setRemarks('');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Action failed');
-    } finally {
-      setBusy(false);
-    }
+  if (target === 'Rejected' && !remarks.trim()) {
+    setError('Please provide a rejection reason.');
+    return;
+  }
+ 
+  setBusy(true);
+  setError('');
+ 
+  try {
+    const res = await updateStatus(id, target, remarks);
+    setRequest(res.data);
+    setRemarks('');
+  } catch (err) {
+    setError(err.response?.data?.message || 'Action failed');
+  } finally {
+    setBusy(false);
+  }
   }
 
   if (loading) return <Spinner full />;
@@ -123,10 +129,13 @@ export default function ProcessRequest() {
           <p className="text-sm text-gray-400">No further action available for this status.</p>
         ) : (
           <>
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              For rejection, a reason is required.
+            </p>
             <textarea
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Remarks (optional, shared with the requester)"
+              placeholder="Remarks (required when rejecting, optional for other actions)"
               rows={2}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-primary-500"
             />
@@ -138,7 +147,9 @@ export default function ProcessRequest() {
                   onClick={() => handleAction(a.target)}
                   className={`px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 ${BTN_STYLES[a.style]}`}
                 >
-                  {a.label}
+                  {a.target === 'Rejected'
+                  ? 'Reject Request'
+                  : a.label}
                 </button>
               ))}
             </div>
