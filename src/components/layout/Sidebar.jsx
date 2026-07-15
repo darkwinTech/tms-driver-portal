@@ -1,12 +1,12 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { resetDb } from '../../mock/db.js';
 import logo from '/logo.png'
 
-const requesterLinks = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/requests/new', label: 'New Request'},
-  { to: '/requests', label: 'My Requests'},
+const NEW_REQUEST_SUBLINKS = [
+  { to: '/requests/create-driver', label: 'Create New Driver' },
+  { to: '/requests/modify-driver', label: 'Modify Existing Driver' },
+  { to: '/requests/disable-driver', label: 'Disable Existing Driver' },
 ];
 
 const processorLinks = [
@@ -15,15 +15,16 @@ const processorLinks = [
   { to: '/reports', label: 'Reports'},
 ];
 
+const navLinkClass = ({ isActive }) =>
+  `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+    isActive ? 'bg-primary-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+  }`;
+
 export default function Sidebar({ open = false, onClose = () => {} }) {
   const { isProcessor } = useAuth();
-  const links = isProcessor ? processorLinks : requesterLinks;
-
-  function handleResetDemoData() {
-    if (!window.confirm('Reset all demo data back to its original state? This clears anything you created in this session.')) return;
-    resetDb();
-    window.location.reload();
-  }
+  const location = useLocation();
+  const onNewRequestPage = NEW_REQUEST_SUBLINKS.some((l) => location.pathname === l.to);
+  const [newRequestOpen, setNewRequestOpen] = useState(onNewRequestPage);
 
   return (
     <>
@@ -51,47 +52,44 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         />
       </NavLink>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {/* {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-primary-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-              }`
-            }
-          >
-            <span>{link.icon}</span>
-            {link.label}
-          </NavLink>
-        ))} */}
-        {links.map((link) => (
-  <NavLink
-    key={link.to}
-    to={link.to}
-    // Update this line to include '/requests'
-    end={link.to === '/' || link.to === '/requests'}
-    onClick={onClose}
-    className={({ isActive }) =>
-      `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-        isActive ? 'bg-primary-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-      }`
-    }
-  >
-    <span>{link.icon}</span>
-    {link.label}
-  </NavLink>
-))}
+        {isProcessor ? (
+          processorLinks.map((link) => (
+            <NavLink key={link.to} to={link.to} end={link.to === '/'} onClick={onClose} className={navLinkClass}>
+              {link.label}
+            </NavLink>
+          ))
+        ) : (
+          <>
+            <NavLink to="/" end onClick={onClose} className={navLinkClass}>
+              Dashboard
+            </NavLink>
+
+            <button
+              type="button"
+              onClick={() => setNewRequestOpen((prev) => !prev)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                onNewRequestPage ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+              }`}
+            >
+              New Request
+              <span className={`transition-transform ${newRequestOpen ? 'rotate-90' : ''}`}>›</span>
+            </button>
+            {newRequestOpen && (
+              <div className="pl-3 space-y-1">
+                {NEW_REQUEST_SUBLINKS.map((link) => (
+                  <NavLink key={link.to} to={link.to} onClick={onClose} className={navLinkClass}>
+                    {link.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+
+            <NavLink to="/requests" end onClick={onClose} className={navLinkClass}>
+              My Requests
+            </NavLink>
+          </>
+        )}
       </nav>
-      {/* <div className="px-6 py-4 border-t border-gray-800 space-y-2">
-        <button
-          onClick={handleResetDemoData}
-          className="text-xs text-gray-400 hover:text-white"
-        >
-          Reset demo data
-        </button>
-      </div> */}
     </aside>
     </>
   );
