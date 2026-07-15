@@ -1,17 +1,20 @@
-// Client-side Excel template generation + parsing (mirrors
-// backend/src/utils/excelTemplate.js), using the 'xlsx' package directly
-// in the browser since there is no server to do this for us.
+// Client-side Excel template generation + parsing, using the 'xlsx' package
+// directly in the browser since there is no server to do this for us.
+// Column set mirrors the current Create Driver form: Group/Customer, Driver
+// Class, Operating Hours are NOT part of the requester-facing template (see
+// src/utils/constants.js hiddenFromRequester).
 import * as XLSX from 'xlsx';
-import { validateDriverRow } from './validators.js';
+import { validateDriverRow } from '../utils/validators.js';
 
 const COLUMNS = [
   { header: 'First Name', key: 'firstName' },
   { header: 'Last Name', key: 'lastName' },
   { header: 'Email Address', key: 'email' },
   { header: 'Mobile Number', key: 'phone' },
-  { header: 'Group / Customer', key: 'customerGroup' },
-  { header: 'Driver Class', key: 'driverClass' },
-  { header: 'Operating Hours', key: 'operatingHours' },
+  { header: 'Driver License Number (CR)', key: 'licenseNumber' },
+  { header: 'Driver License Expiration Date (CR)', key: 'licenseExpiry' },
+  { header: 'Driver/Car Insurance (CR)', key: 'hasInsurance' },
+  { header: 'Driver City (CR)', key: 'city' },
   { header: 'PO Number', key: 'poNumber' },
   { header: 'PO Expiry Date (YYYY-MM-DD)', key: 'poExpiry' },
 ];
@@ -19,21 +22,19 @@ const COLUMNS = [
 export function buildTemplateBlob() {
   const headerRow = COLUMNS.map((c) => c.header);
   const instructionRow = [
-  'Replace with First Name',
-  'Replace with Last Name',
-  'Replace with Email Address',
-  'Replace with Mobile Number',
-  'Replace with Group / Customer',
-  'Replace with Driver Class',
-  'Replace with Operating Hours',
-  'Replace with PO Number',
-  'Replace with Expiry Date (YYYY-MM-DD)',
-];
+    'Replace with First Name',
+    'Replace with Last Name',
+    'Replace with Email Address',
+    'Replace with Mobile Number',
+    'Replace with Driver License Number',
+    'Replace with License Expiration Date (YYYY-MM-DD)',
+    'Replace with Yes or No',
+    'Replace with Driver City',
+    'Replace with PO Number',
+    'Replace with Expiry Date (YYYY-MM-DD)',
+  ];
 
-  const worksheet = XLSX.utils.aoa_to_sheet([
-  headerRow,
-  instructionRow,
-]);
+  const worksheet = XLSX.utils.aoa_to_sheet([headerRow, instructionRow]);
   worksheet['!cols'] = COLUMNS.map(() => ({ wch: 24 }));
 
   const workbook = XLSX.utils.book_new();
@@ -62,46 +63,38 @@ export function parseDriverExcelFile(file) {
         const errors = [];
 
         rawRows.forEach((raw, idx) => {
- 
-              // Skip the template instruction row
-              if (idx === 0) return;
-            
-              const row = {};
-            
-              Object.entries(raw).forEach(([header, value]) => {
-                const key = headerToKey[header.trim()];
-                if (key) {
-                  row[key] = typeof value === 'string'
-                    ? value.trim()
-                    : value;
-                }
-              });
-            
-              const hasAnyValue = Object.values(row).some(
-                (v) => v !== '' && v !== undefined && v !== null
-              );
-            
-              if (!hasAnyValue) return;
-            
-              row.role = 'Privileged User';
-            
-              const rowErrors = validateDriverRow(row);
-            
-              if (rowErrors.length) {
-                errors.push({
-                  row: idx + 2,
-                  errors: rowErrors,
-                });
-              }
-            
-              drivers.push(row);
-            });
+          // sheet_to_json uses the header row as keys and doesn't include it
+          // in rawRows, so idx 0 is the instruction row - skip it.
+          if (idx === 0) return;
+
+          const row = {};
+          Object.entries(raw).forEach(([header, value]) => {
+            const key = headerToKey[header.trim()];
+            if (key) {
+              row[key] = typeof value === 'string' ? value.trim() : value;
+            }
+          });
+
+          const hasAnyValue = Object.values(row).some((v) => v !== '' && v !== undefined && v !== null);
+          if (!hasAnyValue) return;
+
+          row.role = 'Privileged User';
+
+          const rowErrors = validateDriverRow(row, { requireCreateFields: true });
+          // idx=1 is the first real data row - report it as "Row 1" to match
+          // the driver grid's own 1-indexed rows.
+          if (rowErrors.length) {
+            errors.push({ row: idx, errors: rowErrors });
+          }
+
+          drivers.push(row);
+        });
 
         resolve({ drivers, errors });
-          } catch (err) {
-            reject(err);
-          }
-        };
+      } catch (err) {
+        reject(err);
+      }
+    };
     reader.readAsArrayBuffer(file);
   });
 }
@@ -117,6 +110,10 @@ export function buildDriversExportBlob(drivers) {
     'Group / Customer': d.customerGroup,
     'Driver Class': d.driverClass,
     'Operating Hours': d.operatingHours,
+    'Driver License Number (CR)': d.licenseNumber,
+    'Driver License Expiration Date (CR)': d.licenseExpiry,
+    'Driver/Car Insurance (CR)': d.hasInsurance,
+    'Driver City (CR)': d.city,
     'PO Number': d.poNumber,
     'PO Expiry Date': d.poExpiry,
   }));

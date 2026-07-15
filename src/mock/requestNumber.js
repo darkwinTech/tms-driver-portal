@@ -1,15 +1,17 @@
 import { getDb } from './db.js';
 
+// Format: REQ-{year}-{4-digit sequence}, resetting each calendar year.
 export function generateRequestNumber() {
+  const db = getDb();
   const year = new Date().getFullYear();
   const prefix = `REQ-${year}-`;
-  const db = getDb();
 
-  const matching = db.requests
+  const maxSeq = db.requests
     .filter((r) => r.requestNumber.startsWith(prefix))
-    .map((r) => parseInt(r.requestNumber.split('-').pop(), 10))
-    .filter((n) => !Number.isNaN(n));
+    .reduce((max, r) => {
+      const seq = parseInt(r.requestNumber.slice(prefix.length), 10);
+      return Number.isNaN(seq) ? max : Math.max(max, seq);
+    }, 0);
 
-  const nextSeq = matching.length ? Math.max(...matching) + 1 : 1;
-  return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
 }

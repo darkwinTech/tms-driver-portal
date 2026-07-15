@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import { uploadAttachment, attachmentDownloadUrl } from '../../api/requests.js';
+import { uploadAttachment, downloadAttachment } from '../../api/requests.js';
 
 export default function AttachmentsList({ requestId, attachments = [], onUploaded, readOnly = false }) {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   async function handleFileChange(e) {
     const file = e.target.files[0];
@@ -18,21 +19,33 @@ export default function AttachmentsList({ requestId, attachments = [], onUploade
     }
   }
 
+  async function handleDownload(attachment) {
+    setDownloadingId(attachment.id);
+    try {
+      await downloadAttachment(requestId, attachment.id, attachment.fileName);
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   return (
     <div>
       <ul className="space-y-2 mb-3">
         {attachments.length === 0 && <li className="text-sm text-gray-400">No attachments.</li>}
         {attachments.map((a) => (
           <li key={a.id} className="flex items-center justify-between text-sm bg-gray-50 rounded-md px-3 py-2">
-            <span className="truncate">📎 {a.fileName}</span>
-            <a
-              href={attachmentDownloadUrl(requestId, a.id)}
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary-600 hover:underline text-xs shrink-0 ml-2"
+            <span className="truncate">
+              📎 {a.docType ? `Driver ${a.driverIndex + 1} — ${a.docType}: ` : ''}
+              {a.fileName}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleDownload(a)}
+              disabled={downloadingId === a.id}
+              className="text-primary-600 hover:underline text-xs shrink-0 ml-2 disabled:opacity-50"
             >
-              Download
-            </a>
+              {downloadingId === a.id ? 'Downloading…' : 'Download'}
+            </button>
           </li>
         ))}
       </ul>

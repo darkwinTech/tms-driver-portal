@@ -1,4 +1,4 @@
-// Initial dummy dataset for the frontend 
+// Initial dummy dataset for the frontend
 // 9 table schema in plain JS objects/arrays instead of MySQL tables.
 
 export const DEMO_PASSWORD = 'Password123!';
@@ -17,14 +17,17 @@ export function buildSeed() {
   ];
 
   const requestTypes = ['Create Driver', 'Modify Driver', 'Disable Driver'];
-  const requestStatuses = ['Submitted', 'Under Review', 'Approved', 'Processing', 'Completed', 'Rejected'];
+  // Two distinct negative outcomes: "Returned to Requester" is non-terminal
+  // (editable/resubmittable), "Rejected" is a dead end.
+  const requestStatuses = ['Submitted', 'Under Review', 'Returned to Requester', 'Approved', 'Processing', 'Completed', 'Rejected'];
 
   const drivers = [
-    { id: 1, requestId: 1, username: '', firstName: 'Mohammed', lastName: 'Saeed', email: 'mohammed.saeed@asmo.com', phone: '0551234567', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '4821211244768', poExpiry: '2026-11-30' },
-    { id: 2, requestId: 1, username: '', firstName: 'Khalid', lastName: 'Nasser', email: 'khalid.nasser@asmo.com', phone: '0559876543', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '20Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '4821211244768', poExpiry: '2026-11-30' },
+    { id: 1, requestId: 1, username: 'mohammed.saeed', firstName: 'Mohammed', lastName: 'Saeed', email: 'mohammed.saeed@asmo.com', phone: '0551234567', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', licenseNumber: '21832743719', licenseExpiry: '2026-11-30', hasInsurance: 'Yes', city: 'Khobar', poNumber: '4821211244768', poExpiry: '2026-11-30' },
+    { id: 2, requestId: 1, username: 'khalid.nasser', firstName: 'Khalid', lastName: 'Nasser', email: 'khalid.nasser@asmo.com', phone: '0559876543', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '20Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', licenseNumber: '21832743720', licenseExpiry: '2026-11-30', hasInsurance: 'Yes', city: 'Khobar', poNumber: '4821211244768', poExpiry: '2026-11-30' },
     { id: 3, requestId: 2, username: 'ali.ahmed@asmo.com', firstName: 'Ali', lastName: 'Ahmed', email: 'ali.ahmed@asmo.com', phone: '0552112332', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '4821211244768', poExpiry: '2027-05-19' },
     { id: 4, requestId: 3, username: '', firstName: 'Yousef', lastName: 'Hamdan', email: 'yousef.hamdan@asmo.com', phone: '0567891234', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '10Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '', poExpiry: '' },
-    { id: 5, requestId: 4, username: 'saad.omar@asmo.com', firstName: 'Saad', lastName: 'Omar', email: 'saad.omar@asmo.com', phone: '0501122334', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '20Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '4821211244999', poExpiry: '2026-08-01' },
+    { id: 5, requestId: 4, username: '', firstName: 'Saad', lastName: 'Omar', email: 'saad.omar@asmo.com', phone: '0501122334', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '19921147753', licenseExpiry: '2026-08-01', hasInsurance: 'No', city: 'Riyadh', poNumber: '4821211244999', poExpiry: '2026-08-01' },
+    { id: 6, requestId: 5, username: '', firstName: 'Turki', lastName: 'Salem', email: 'turki.salem@asmo.com', phone: '0567123344', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '10456782233', licenseExpiry: '2026-04-15', hasInsurance: 'Yes', city: 'Dammam', poNumber: '4821211255001', poExpiry: '2026-10-10' },
   ];
 
   const requests = [
@@ -52,6 +55,12 @@ export function buildSeed() {
       entryMethod: 'Manual', currentProcessorId: 4,
       submittedDate: daysAgo(6), completedDate: null, createdAt: daysAgo(6), updatedAt: daysAgo(5),
     },
+    {
+      id: 5, requestNumber: 'REQ-2026-0005', requesterId: 2, requestTypeName: 'Create Driver', statusName: 'Returned to Requester',
+      description: 'Onboard a new driver for the SABIC route.', businessJustification: 'Replacing a driver who resigned.',
+      entryMethod: 'Manual', currentProcessorId: 4,
+      submittedDate: daysAgo(2), completedDate: null, createdAt: daysAgo(2), updatedAt: daysAgo(1),
+    },
   ];
 
   const history = [
@@ -67,7 +76,10 @@ export function buildSeed() {
     { id: 8, requestId: 3, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(1) },
 
     { id: 9, requestId: 4, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(6) },
-    { id: 10, requestId: 4, oldStatus: 'Submitted', newStatus: 'Rejected', changedBy: 4, remarks: 'PO number does not match an active contract. Please resubmit with a valid PO.', createdAt: daysAgo(5) },
+    { id: 10, requestId: 4, oldStatus: 'Submitted', newStatus: 'Rejected', changedBy: 4, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
+
+    { id: 11, requestId: 5, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(2) },
+    { id: 12, requestId: 5, oldStatus: 'Submitted', newStatus: 'Returned to Requester', changedBy: 4, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
   ];
 
 
@@ -89,12 +101,13 @@ export function buildSeed() {
 
   const notifications = [
     { id: 1, userId: 1, requestId: 1, title: 'Request REQ-2026-0001 - Completed', message: 'Your request status changed to "Completed".', isRead: false, createdAt: daysAgo(2) },
-    { id: 2, userId: 1, requestId: 4, title: 'Request REQ-2026-0004 - Rejected', message: 'Your request status changed to "Rejected". Remarks: PO number does not match an active contract. Please resubmit with a valid PO.', isRead: false, createdAt: daysAgo(5) },
+    { id: 2, userId: 1, requestId: 4, title: 'Request REQ-2026-0004 - Rejected', message: 'Your request status changed to "Rejected". Remarks: Route was cancelled by the customer - driver account no longer needed.', isRead: false, createdAt: daysAgo(5) },
     { id: 3, userId: 1, requestId: 2, title: 'Request REQ-2026-0002 - Under Review', message: 'Your request status changed to "Under Review".', isRead: true, createdAt: daysAgo(1) },
+    { id: 4, userId: 2, requestId: 5, title: 'Request REQ-2026-0005 - Returned to Requester', message: 'Your request status changed to "Returned to Requester". Remarks: The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', isRead: false, createdAt: daysAgo(1) },
   ];
 
   return {
-    nextIds: { user: 6, request: 5, driver: 6, history: 11, attachment: 1, notification: 4 },
+    nextIds: { user: 6, request: 6, driver: 7, history: 13, attachment: 1, notification: 5 },
     users,
     requestTypes,
     requestStatuses,
