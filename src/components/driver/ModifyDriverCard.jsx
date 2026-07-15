@@ -1,46 +1,23 @@
 import { DRIVER_FIELDS } from '../../utils/constants.js';
-import OperatingHoursPicker from './OperatingHoursPicker.jsx';
 
-const EDITABLE_FIELDS = DRIVER_FIELDS.filter((f) => f.key !== 'username');
+const EDITABLE_FIELDS = DRIVER_FIELDS.filter((f) => ['poNumber', 'poExpiry'].includes(f.key));
 
 /**
- * One selected driver in a Modify Driver request: shows the original value
- * next to an editable field, and highlights whichever fields the requester
- * has actually changed so the processor can see the diff at a glance.
+ * One selected driver in a Modify Driver request: only PO Number / PO
+ * Expiry Date can be changed here - shows the original value next to each
+ * editable field, and highlights whichever ones the requester has actually
+ * changed so the processor can see the diff at a glance.
  */
-export default function ModifyDriverCard({ original, value, onChange, onRemove }) {
+export default function ModifyDriverCard({ original, value, onChange }) {
   return (
     <div className="border border-gray-200 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-xs text-gray-500">Username</p>
-          <p className="font-medium text-gray-800">{original.username}</p>
-        </div>
-        <button type="button" onClick={onRemove} className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white px-3 py-1 rounded text-sm transition">
-           Remove
-        </button>
+      <div className="mb-3">
+        <p className="text-xs text-gray-500">Username</p>
+        <p className="font-medium text-gray-800">{original.username}</p>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
         {EDITABLE_FIELDS.map((f) => {
-          if (f.fixed) {
-            return (
-              <div key={f.key}>
-                <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                <p className="text-sm text-gray-700 px-3 py-1.5">{original[f.key] || f.defaultValue}</p>
-              </div>
-            );
-          }
-
-          if (f.key === 'operatingHours') {
-            return (
-              <div key={f.key} className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                <OperatingHoursPicker value={value[f.key]} onChange={(v) => onChange(f.key, v)} />
-              </div>
-            );
-          }
-
           const oldVal = original[f.key] || '-';
           const newVal = value[f.key] || '';
           const changed = String(original[f.key] || '') !== String(newVal);
