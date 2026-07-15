@@ -1,6 +1,7 @@
 export const STATUS_COLORS = {
   Submitted: 'bg-blue-100 text-blue-700',
   'Under Review': 'bg-amber-100 text-amber-700',
+  'Returned to Requester': 'bg-orange-100 text-orange-700',
   Approved: 'bg-teal-100 text-teal-700',
   Processing: 'bg-indigo-100 text-indigo-700',
   Completed: 'bg-green-100 text-green-700',

@@ -12,9 +12,16 @@ export const DRIVER_FIELDS = [
   { key: 'email', label: 'Email Address', required: true },
   { key: 'phone', label: 'Mobile Number', required: true },
   { key: 'role', label: 'Role', fixed: true, defaultValue: 'Privileged User' },
-  { key: 'customerGroup', label: 'Group / Customer', placeholder: 'e.g. CUEU/ARCO', required: true },
-  { key: 'driverClass', label: 'Driver Class', placeholder: 'e.g. 30Ton_Drivers', required: true},
-  { key: 'operatingHours', label: 'Operating Hours', required: true},
+  { key: 'customerGroup', label: 'Group / Customer', placeholder: 'e.g. CUEU/ARCO', required: true, hiddenFromRequester: true },
+  { key: 'driverClass', label: 'Driver Class', placeholder: 'e.g. 30Ton_Drivers', required: true, hiddenFromRequester: true },
+  { key: 'operatingHours', label: 'Operating Hours', required: true, hiddenFromRequester: true },
+  { key: 'licenseNumber', label: 'Driver License Number (CR)', placeholder: 'Enter driver license number', required: true, createOnly: true },
+  { key: 'licenseExpiry', label: 'Driver License Expiration Date (CR)', type: 'date', required: true, createOnly: true },
+  { key: 'hasInsurance', label: 'Driver/Car Insurance (CR)', type: 'select', options: ['Yes', 'No'], required: true, createOnly: true },
+  { key: 'city', label: 'Driver City (CR)', placeholder: 'Select or enter city', required: true, createOnly: true, suggestions: ['Khobar', 'Riyadh', 'Jeddah', 'Dammam'] },
+  { key: 'licenseFile', label: 'Driver License', type: 'file', accept: '.pdf,.jpg,.jpeg,.png', required: true, createOnly: true },
+  { key: 'idFile', label: 'Driver ID', type: 'file', accept: '.pdf,.jpg,.jpeg,.png', required: true, createOnly: true },
+  { key: 'photoFile', label: 'Driver Photo', type: 'file', accept: '.jpg,.jpeg,.png', required: true, createOnly: true },
   { key: 'poNumber', label: 'PO Number', required: true},
   { key: 'poExpiry', label: 'PO Expiry Date', type: 'date', required: true},
 ];
@@ -24,4 +31,4 @@ export const EMPTY_DRIVER = DRIVER_FIELDS.reduce((acc, f) => {
   return acc;
 }, {});
 
-export const MAX_DRIVERS = 100;
+export const MAX_DRIVERS = 1000;
