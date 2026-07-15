@@ -34,10 +34,17 @@ export default function AppRoutes() {
       >
         <Route path="/" element={<HomeRedirect />} />
 
-        {/* Requester */}
-        <Route path="/requests/new" element={<NewRequest />} />
+        {/* Requester - each gets a distinct `key` so navigating between them
+            (e.g. via the sidebar, without a full page reload) forces React
+            to unmount/remount NewRequest instead of reusing the same
+            instance and leaving its internal state stuck on whichever type
+            loaded first. */}
+        <Route path="/requests/create-driver" element={<NewRequest key="create-driver" requestType="Create Driver" />} />
+        <Route path="/requests/modify-driver" element={<NewRequest key="modify-driver" requestType="Modify Driver" />} />
+        <Route path="/requests/disable-driver" element={<NewRequest key="disable-driver" requestType="Disable Driver" />} />
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/requests/:id" element={<RequestDetails />} />
+        <Route path="/requests/:id/edit" element={<NewRequest />} />
 
         {/* Processor */}
         <Route

@@ -9,23 +9,31 @@ import AttachmentsList from '../../components/request/AttachmentsList.jsx';
 import Alert from '../../components/common/Alert.jsx';
 import { formatDate } from '../../utils/statusColors.js';
 
-// Mirrors backend TRANSITIONS for Processor role (src/utils/workflow.js)
+// Mirrors server/src/services/workflowService.js TRANSITIONS for the
+// Processor role. Two distinct negative outcomes: "Return to Requester" is
+// non-terminal (the requester can edit and resubmit), "Reject" is a dead
+// end used when the driver/request isn't wanted at all.
 const PROCESSOR_ACTIONS = {
   Submitted: [
     { label: 'Start Review', target: 'Under Review', style: 'primary' },
+    { label: 'Return to Requester', target: 'Returned to Requester', style: 'warning' },
     { label: 'Reject', target: 'Rejected', style: 'danger' },
   ],
   'Under Review': [
     { label: 'Approve', target: 'Approved', style: 'primary' },
+    { label: 'Return to Requester', target: 'Returned to Requester', style: 'warning' },
     { label: 'Reject', target: 'Rejected', style: 'danger' },
   ],
   Approved: [{ label: 'Start Processing', target: 'Processing', style: 'primary' }],
   Processing: [{ label: 'Complete Request', target: 'Completed', style: 'primary' }],
 };
 
+const REMARKS_REQUIRED_TARGETS = new Set(['Returned to Requester', 'Rejected']);
+
 const BTN_STYLES = {
   primary: 'bg-primary-600 text-white hover:bg-primary-700',
   secondary: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50',
+  warning: 'bg-amber-500 text-white hover:bg-amber-600',
   danger: 'bg-red-600 text-white hover:bg-red-700',
 };
 
@@ -45,8 +53,8 @@ export default function ProcessRequest() {
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAction(target) {
-  if (target === 'Rejected' && !remarks.trim()) {
-    setError('Please provide a rejection reason.');
+  if (REMARKS_REQUIRED_TARGETS.has(target) && !remarks.trim()) {
+    setError('Please provide a comment explaining this decision.');
     return;
   }
  
@@ -130,12 +138,12 @@ export default function ProcessRequest() {
         ) : (
           <>
             <p className="text-sm font-medium text-gray-700 mb-2">
-              For rejection, a reason is required.
+              A comment is required when returning to the requester or rejecting.
             </p>
             <textarea
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Remarks (required when rejecting, optional for other actions)"
+              placeholder="Remarks (required for Return to Requester / Reject, optional otherwise)"
               rows={2}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-1 focus:ring-primary-500"
             />
@@ -147,9 +155,7 @@ export default function ProcessRequest() {
                   onClick={() => handleAction(a.target)}
                   className={`px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 ${BTN_STYLES[a.style]}`}
                 >
-                  {a.target === 'Rejected'
-                  ? 'Reject Request'
-                  : a.label}
+                  {a.label}
                 </button>
               ))}
             </div>

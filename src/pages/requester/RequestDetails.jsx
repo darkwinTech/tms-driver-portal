@@ -5,6 +5,8 @@ import StatusBadge from '../../components/common/StatusBadge.jsx';
 import Spinner from '../../components/common/Spinner.jsx';
 import DriverTable from '../../components/driver/DriverTable.jsx';
 import RequestTimeline from '../../components/request/RequestTimeline.jsx';
+import AttachmentsList from '../../components/request/AttachmentsList.jsx';
+import Alert from '../../components/common/Alert.jsx';
 import { formatDate } from '../../utils/statusColors.js';
 
 export default function RequestDetails() {
@@ -21,9 +23,27 @@ export default function RequestDetails() {
   if (loading) return <Spinner full />;
   if (!request) return <p className="text-gray-500">Request not found.</p>;
 
+  const isReturned = request.status?.name === 'Returned to Requester';
+  const returnedRemark = isReturned
+    ? [...(request.history || [])].reverse().find((h) => h.newStatus === 'Returned to Requester')?.remarks
+    : null;
+
   return (
     <div className="max-w-5xl space-y-6">
       <Link to="/requests" className="text-sm text-primary-600 hover:underline">← Back to My Requests</Link>
+
+      {isReturned && (
+        <Alert type="warning">
+          <p className="font-medium mb-1">Operations returned this request for correction.</p>
+          {returnedRemark && <p className="mb-2">{returnedRemark}</p>}
+          <Link
+            to={`/requests/${request.id}/edit`}
+            className="inline-block px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700"
+          >
+            Edit &amp; Resubmit
+          </Link>
+        </Alert>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -70,6 +90,11 @@ export default function RequestDetails() {
       <section className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-medium text-gray-800 mb-4">Driver List ({request.drivers?.length || 0})</h3>
         <DriverTable drivers={request.drivers || []} setDrivers={() => {}} readOnly />
+      </section>
+
+      <section className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="font-medium text-gray-800 mb-4">Attachments</h3>
+        <AttachmentsList requestId={request.id} attachments={request.attachments} readOnly />
       </section>
 
       <section className="bg-white rounded-xl border border-gray-200 p-5">

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createRequest, uploadAttachment } from '../../api/requests.js';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { createRequest, getRequest, resubmitRequest, uploadAttachment } from '../../api/requests.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { REQUEST_TYPES, DRIVER_FIELDS } from '../../utils/constants.js';
 import DriverTable from '../../components/driver/DriverTable.jsx';
@@ -9,6 +9,15 @@ import DriverSearchPanel from '../../components/driver/DriverSearchPanel.jsx';
 import ModifyDriverCard from '../../components/driver/ModifyDriverCard.jsx';
 import DisableDriverCard from '../../components/driver/DisableDriverCard.jsx';
 import Alert from '../../components/common/Alert.jsx';
+import Spinner from '../../components/common/Spinner.jsx';
+
+const FILE_FIELDS = DRIVER_FIELDS.filter((f) => f.type === 'file');
+
+const PAGE_COPY = {
+  'Create Driver': { title: 'Create New Driver', subtitle: 'Submit a new driver account request for AD / Operations / IT TMS processing.' },
+  'Modify Driver': { title: 'Modify Existing Driver', subtitle: 'Search for an existing driver and update their PO details.' },
+  'Disable Driver': { title: 'Disable Existing Driver', subtitle: 'Search for an existing driver and request that their access be disabled.' },
+};
 
 function buildChangeSummary(original, edited) {
   const changed = DRIVER_FIELDS.filter((f) => f.key !== 'username').filter(
@@ -18,11 +27,19 @@ function buildChangeSummary(original, edited) {
   return changed.map((f) => `${f.label}: "${original[f.key] || '-'}" → "${edited[f.key] || '-'}"`).join('; ');
 }
 
-export default function NewRequest() {
+export default function NewRequest({ requestType }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id: editId } = useParams();
+  const isEditMode = Boolean(editId);
 
-  const [requestTypeName, setRequestTypeName] = useState(REQUEST_TYPES[0]);
+  const [loadingExisting, setLoadingExisting] = useState(isEditMode);
+  const [returnedRemark, setReturnedRemark] = useState('');
+
+  // The request type is fixed by which page/route the requester is on
+  // (chosen from the sidebar) rather than an in-form switcher - edit mode
+  // overrides it once the actual request loads, since it could be any type.
+  const [requestTypeName, setRequestTypeName] = useState(requestType || REQUEST_TYPES[0]);
 
   // Create Driver state
   const [entryMethod, setEntryMethod] = useState('Manual');
@@ -40,14 +57,30 @@ export default function NewRequest() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [forceValidate, setForceValidate] = useState(false);
 
-  function handleTypeChange(type) {
-    setRequestTypeName(type);
-    setSelectedDrivers([]);
-    setCreateDrivers([]);
-    setError('');
-    setFieldErrors([]);
-  }
+  useEffect(() => {
+    if (!isEditMode) return;
+    getRequest(editId)
+      .then((res) => {
+        const req = res.data;
+        setRequestTypeName(req.requestType?.name || REQUEST_TYPES[0]);
+        setDescription(req.description || '');
+        setBusinessJustification(req.businessJustification || '');
+        setEffectiveDate(req.effectiveDate ? req.effectiveDate.slice(0, 10) : '');
+
+        if (req.requestType?.name === 'Create Driver') {
+          setCreateDrivers((req.drivers || []).map((d) => ({ ...d })));
+        } else {
+          setSelectedDrivers((req.drivers || []).map((d) => ({ original: { ...d }, edited: { ...d } })));
+        }
+
+        const returned = [...(req.history || [])].reverse().find((h) => h.newStatus === 'Returned to Requester');
+        setReturnedRemark(returned?.remarks || '');
+      })
+      .catch((err) => setError(err.response?.data?.message || 'Failed to load request'))
+      .finally(() => setLoadingExisting(false));
+  }, [editId, isEditMode]);
 
   function handleSelectDriver(driver) {
     setSelectedDrivers((prev) => [...prev, { original: driver, edited: { ...driver } }]);
@@ -79,17 +112,9 @@ export default function NewRequest() {
   function validateDrivers(drivers) {
   const errors = [];
 
-  const requiredKeys = [
-    'firstName',
-    'lastName',
-    'email',
-    'phone',
-    'customerGroup',
-    'driverClass',
-    'operatingHours',
-    'poNumber',
-    'poExpiry',
-  ];
+  const requiredKeys = DRIVER_FIELDS.filter(
+    (f) => f.required && !f.hiddenFromRequester && !(isEditMode && f.type === 'file')
+  ).map((f) => f.key);
 
   drivers.forEach((driver, index) => {
     const rowErrors = [];
@@ -124,6 +149,7 @@ export default function NewRequest() {
 
       if (validationErrors.length > 0) {
         setFieldErrors(validationErrors);
+        setForceValidate(true);
         setSubmitting(false);
         return;
       }
@@ -134,26 +160,57 @@ export default function NewRequest() {
         return;
       }
 
-      const res = await createRequest({
-        requestTypeName,
-        entryMethod: requestTypeName === 'Create Driver' ? entryMethod : 'Search',
-        drivers,
-        description,
-        businessJustification,
-        effectiveDate: requestTypeName === 'Disable Driver' ? effectiveDate : undefined,
+      // Driver license/ID/photo uploads are File objects that can't be
+      // serialized into db.drivers - they're uploaded separately below,
+      // linked to their driver row via driverIndex/docType.
+      const driversForSubmit = drivers.map((d) => {
+        const stripped = { ...d };
+        FILE_FIELDS.forEach((f) => delete stripped[f.key]);
+        return stripped;
       });
 
-      const newRequest = res.data;
+      const res = isEditMode
+        ? await resubmitRequest(editId, {
+            description,
+            businessJustification,
+            drivers: driversForSubmit,
+            effectiveDate: requestTypeName === 'Disable Driver' ? effectiveDate : undefined,
+          })
+        : await createRequest({
+            requestTypeName,
+            entryMethod: requestTypeName === 'Create Driver' ? entryMethod : 'Search',
+            drivers: driversForSubmit,
+            description,
+            businessJustification,
+            effectiveDate: requestTypeName === 'Disable Driver' ? effectiveDate : undefined,
+          });
+
+      const savedRequest = res.data;
 
       for (const file of attachments) {
         // eslint-disable-next-line no-await-in-loop
-        await uploadAttachment(newRequest.id, file);
+        await uploadAttachment(savedRequest.id, file);
       }
 
-      navigate(`/requests/${newRequest.id}`);
+      if (requestTypeName === 'Create Driver') {
+        for (let idx = 0; idx < drivers.length; idx++) {
+          const driver = drivers[idx];
+          for (const f of FILE_FIELDS) {
+            const file = driver[f.key];
+            if (file instanceof File) {
+              const docType = f.label.replace(/^Driver\s+/, '');
+              // eslint-disable-next-line no-await-in-loop
+              await uploadAttachment(savedRequest.id, file, { driverIndex: idx, docType });
+            }
+          }
+        }
+      }
+
+      navigate(`/requests/${savedRequest.id}`);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit request');
       setFieldErrors(err.response?.data?.validationErrors || []);
+      setForceValidate(true);
     } finally {
       setSubmitting(false);
     }
@@ -164,12 +221,26 @@ export default function NewRequest() {
   const descriptionLabel =
     requestTypeName === 'Modify Driver' ? 'Reason for Modification *' : requestTypeName === 'Disable Driver' ? 'Disable Reason *' : 'Description *';
 
+  if (loadingExisting) return <Spinner full />;
+
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-gray-800">New Request</h2>
-        <p className="text-sm text-gray-500">Create a driver request for AD / Operations / IT TMS processing.</p>
+        <h2 className="text-xl font-semibold text-gray-800">
+          {isEditMode ? 'Edit & Resubmit Request' : PAGE_COPY[requestTypeName]?.title || 'New Request'}
+        </h2>
+        <p className="text-sm text-gray-500">
+          {isEditMode
+            ? 'Address the comments below, then resubmit for another review.'
+            : PAGE_COPY[requestTypeName]?.subtitle}
+        </p>
       </div>
+
+      {isEditMode && returnedRemark && (
+        <Alert type="warning">
+          <span className="font-medium">Returned by Operations:</span> {returnedRemark}
+        </Alert>
+      )}
 
       <Alert type="error">{error}</Alert>
       {fieldErrors.length > 0 && (
@@ -195,54 +266,42 @@ export default function NewRequest() {
         </div>
       </section>
 
-      {/* Type of request */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 className="font-medium text-gray-800 mb-4">Type of Request</h3>
-        <div className="flex flex-wrap gap-3">
-          {REQUEST_TYPES.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => handleTypeChange(t)}
-              className={`px-4 py-2 rounded-md text-sm font-medium border ${
-                requestTypeName === t
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </section>
-
       {/* ---------------- Create Driver ---------------- */}
       {requestTypeName === 'Create Driver' && (
         <>
-          <section className="bg-white rounded-xl border border-gray-200 p-5">
-            <h3 className="font-medium text-gray-800 mb-4">Choose Entry Method</h3>
-            <div className="flex flex-wrap gap-3 mb-4">
-              {['Manual', 'Excel'].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setEntryMethod(m)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium border ${
-                    entryMethod === m
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {m === 'Manual' ? 'Manual Entry' : 'Excel Upload'}
-                </button>
-              ))}
-            </div>
-            {entryMethod === 'Excel' && <ExcelUploadPanel onParsed={setCreateDrivers} />}
-          </section>
+          {!isEditMode && (
+            <section className="bg-white rounded-xl border border-gray-200 p-5">
+              <h3 className="font-medium text-gray-800 mb-4">Choose Entry Method</h3>
+              <div className="flex flex-wrap gap-3 mb-4">
+                {['Manual', 'Excel'].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setEntryMethod(m)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium border ${
+                      entryMethod === m
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {m === 'Manual' ? 'Manual Entry' : 'Excel Upload'}
+                  </button>
+                ))}
+              </div>
+              {entryMethod === 'Excel' && <ExcelUploadPanel onParsed={setCreateDrivers} />}
+            </section>
+          )}
 
           <section className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="font-medium text-gray-800 mb-4">Driver Records ({createDrivers.length})</h3>
-            <DriverTable drivers={createDrivers} setDrivers={setCreateDrivers} readOnly={entryMethod === 'Excel'} />
+            <DriverTable
+              drivers={createDrivers}
+              setDrivers={setCreateDrivers}
+              readOnly={!isEditMode && entryMethod === 'Excel'}
+              filesEditable={entryMethod === 'Excel' ? true : undefined}
+              forceValidate={forceValidate}
+              skipFileRequiredValidation={isEditMode}
+            />
           </section>
         </>
       )}
@@ -278,7 +337,6 @@ export default function NewRequest() {
                   original={original}
                   value={edited}
                   onChange={(key, value) => handleUpdateDriverField(original.username, key, value)}
-                  onRemove={() => handleRemoveDriver(original.username)}
                 />
               ) : (
                 <DisableDriverCard
@@ -367,7 +425,7 @@ export default function NewRequest() {
           onClick={() => handleSubmit()}
           className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
         >
-          {submitting ? 'Submitting...' : 'Submit Request'}
+          {submitting ? 'Submitting...' : isEditMode ? 'Resubmit Request' : 'Submit Request'}
         </button>
       </div>
     </div>
