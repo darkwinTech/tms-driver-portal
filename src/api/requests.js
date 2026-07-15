@@ -335,8 +335,8 @@
 import { getDb, saveDb, delay } from '../mock/db.js';
 import { getSessionUser } from '../mock/session.js';
 import { hydrateRequestSummary, hydrateRequestFull, findUser } from '../mock/hydrate.js';
-import { isTransitionAllowed } from '../mock/workflow.js';
-import { validateDriverRow } from '../mock/validators.js';
+import { isTransitionAllowed, isRemarksRequired } from '../mock/workflow.js';
+import { validateDriverRow } from '../utils/validators.js';
 import { generateRequestNumber } from '../mock/requestNumber.js';
 import { buildTemplateBlob, parseDriverExcelFile, buildDriversExportBlob } from '../mock/excel.js';
 
@@ -354,6 +354,15 @@ function currentUser() {
 
 function isProcessorRole(roleName) {
   return roleName === 'Processor' || roleName === 'Admin';
+}
+
+function validateDrivers(drivers, { requireUsername, requireCreateFields }) {
+  const validationErrors = [];
+  drivers.forEach((d, idx) => {
+    const rowErrors = validateDriverRow(d, { requireUsername, requireCreateFields });
+    if (rowErrors.length) validationErrors.push({ row: idx + 1, errors: rowErrors });
+  });
+  return validationErrors;
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +393,7 @@ export async function getStats() {
 
   return {
     data: {
-      pending: (counts['Submitted'] || 0) + (counts['Under Review'] || 0),
+      pending: (counts['Submitted'] || 0) + (counts['Under Review'] || 0) + (counts['Returned to Requester'] || 0),
       approved: (counts['Approved'] || 0) + (counts['Processing'] || 0),
       rejected: counts['Rejected'] || 0,
       completed: counts['Completed'] || 0,
@@ -455,12 +464,10 @@ export async function createRequest(payload) {
   if (!drivers.length) {
     throw apiError('At least one driver record is required to submit');
   }
-  const validationErrors = [];
+
   const requireUsername = requestTypeName !== 'Create Driver';
-  drivers.forEach((d, idx) => {
-    const rowErrors = validateDriverRow(d, { requireUsername });
-    if (rowErrors.length) validationErrors.push({ row: idx + 1, errors: rowErrors });
-  });
+  const requireCreateFields = requestTypeName === 'Create Driver';
+  const validationErrors = validateDrivers(drivers, { requireUsername, requireCreateFields });
   if (validationErrors.length) {
     throw apiError('Driver validation failed', 400, { validationErrors });
   }
@@ -499,6 +506,10 @@ export async function createRequest(payload) {
       customerGroup: d.customerGroup || '',
       driverClass: d.driverClass || '',
       operatingHours: d.operatingHours || '',
+      licenseNumber: d.licenseNumber || '',
+      licenseExpiry: d.licenseExpiry || '',
+      hasInsurance: d.hasInsurance || '',
+      city: d.city || '',
       poNumber: d.poNumber || '',
       poExpiry: d.poExpiry || '',
       changeSummary: d.changeSummary || null,
@@ -521,6 +532,10 @@ export async function createRequest(payload) {
 }
 
 // ---------------------------------------------------------------------------
+// Operations approves, returns for correction, or rejects outright:
+//   - Returned to Requester: non-terminal, requester can edit + resubmit.
+//   - Rejected: terminal dead-end.
+// Both negative outcomes require a remark explaining why.
 export async function updateStatus(id, targetStatus, remarks) {
   await delay();
   const user = currentUser();
@@ -533,6 +548,10 @@ export async function updateStatus(id, targetStatus, remarks) {
     throw apiError(`Cannot move request from "${currentStatusName}" to "${targetStatus}" as ${user.role}`);
   }
 
+  if (isRemarksRequired(targetStatus) && !(remarks || '').trim()) {
+    throw apiError('Please provide a comment explaining this decision');
+  }
+
   const now = new Date().toISOString();
   const isProcessor = isProcessorRole(user.role);
 
@@ -540,6 +559,17 @@ export async function updateStatus(id, targetStatus, remarks) {
   row.currentProcessorId = isProcessor ? user.id : row.currentProcessorId;
   row.completedDate = targetStatus === 'Completed' ? now : row.completedDate;
   row.updatedAt = now;
+
+  // Simulates AD actually creating the account once a Create Driver request
+  // is fully completed - this is what makes the driver findable afterward
+  // via Modify/Disable Driver's "search my completed drivers" lookup.
+  if (targetStatus === 'Completed' && row.requestTypeName === 'Create Driver') {
+    db.drivers
+      .filter((d) => d.requestId === row.id && !d.username)
+      .forEach((d) => {
+        d.username = `${d.firstName}.${d.lastName}@asmo.com`.toLowerCase();
+      });
+  }
 
   db.history.push({
     id: db.nextIds.history++,
@@ -568,6 +598,89 @@ export async function updateStatus(id, targetStatus, remarks) {
 }
 
 // ---------------------------------------------------------------------------
+// Requester edits and resubmits a request Operations sent back for
+// correction. Only the original requester can call this, and only while the
+// request is in "Returned to Requester" - it re-runs the same validation as
+// createRequest and moves the request back into the Submitted queue.
+export async function resubmitRequest(id, payload) {
+  await delay();
+  const user = currentUser();
+  const db = getDb();
+  const row = db.requests.find((r) => r.id === Number(id));
+  if (!row) throw apiError('Request not found', 404);
+
+  if (row.requesterId !== user.id) {
+    throw apiError('You can only resubmit your own requests', 403);
+  }
+  if (row.statusName !== 'Returned to Requester') {
+    throw apiError(`Cannot resubmit a request in status "${row.statusName}"`);
+  }
+
+  const { description, businessJustification, drivers = [], effectiveDate } = payload;
+  if (!description || !businessJustification) {
+    throw apiError('Description and Business Justification are required to submit');
+  }
+  if (!drivers.length) {
+    throw apiError('At least one driver record is required to submit');
+  }
+
+  const requireUsername = row.requestTypeName !== 'Create Driver';
+  const requireCreateFields = row.requestTypeName === 'Create Driver';
+  const validationErrors = validateDrivers(drivers, { requireUsername, requireCreateFields });
+  if (validationErrors.length) {
+    throw apiError('Driver validation failed', 400, { validationErrors });
+  }
+
+  const now = new Date().toISOString();
+  const oldStatusName = row.statusName;
+
+  row.description = description;
+  row.businessJustification = businessJustification;
+  row.effectiveDate = effectiveDate || null;
+  row.statusName = 'Submitted';
+  row.currentProcessorId = null;
+  row.updatedAt = now;
+
+  db.drivers = db.drivers.filter((d) => d.requestId !== row.id);
+  drivers.forEach((d) => {
+    db.drivers.push({
+      id: db.nextIds.driver++,
+      requestId: row.id,
+      username: d.username || '',
+      firstName: d.firstName,
+      lastName: d.lastName,
+      email: d.email,
+      phone: d.phone,
+      role: 'Privileged User',
+      customerGroup: d.customerGroup || '',
+      driverClass: d.driverClass || '',
+      operatingHours: d.operatingHours || '',
+      licenseNumber: d.licenseNumber || '',
+      licenseExpiry: d.licenseExpiry || '',
+      hasInsurance: d.hasInsurance || '',
+      city: d.city || '',
+      poNumber: d.poNumber || '',
+      poExpiry: d.poExpiry || '',
+      changeSummary: d.changeSummary || null,
+      driverStatus: d.driverStatus || null,
+    });
+  });
+
+  db.history.push({
+    id: db.nextIds.history++,
+    requestId: row.id,
+    oldStatus: oldStatusName,
+    newStatus: 'Submitted',
+    changedBy: user.id,
+    remarks: 'Resubmitted by requester',
+    createdAt: now,
+  });
+
+  saveDb();
+  return { data: hydrateRequestFull(row) };
+}
+
+// ---------------------------------------------------------------------------
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -577,7 +690,7 @@ function readFileAsDataUrl(file) {
   });
 }
 
-export async function uploadAttachment(id, file) {
+export async function uploadAttachment(id, file, meta = {}) {
   const user = currentUser();
   const db = getDb();
   const row = db.requests.find((r) => r.id === Number(id));
@@ -595,6 +708,8 @@ export async function uploadAttachment(id, file) {
     fileUrl,
     uploadedBy: user.id,
     uploadedDate: new Date().toISOString(),
+    driverIndex: meta.driverIndex ?? null,
+    docType: meta.docType || null,
   };
   db.attachments.push(attachment);
   saveDb();
@@ -602,10 +717,20 @@ export async function uploadAttachment(id, file) {
   return { data: { ...attachment, uploader: { id: user.id, fullName: user.fullName } } };
 }
 
-export function attachmentDownloadUrl(requestId, attachmentId) {
+// Attachments are stored as base64 data URLs in this mock build, so
+// "downloading" just means triggering a save from that data URL directly -
+// no network fetch needed (unlike a real backend, which streams the file).
+export async function downloadAttachment(requestId, attachmentId, fileName) {
   const db = getDb();
   const attachment = db.attachments.find((a) => a.id === Number(attachmentId) && a.requestId === Number(requestId));
-  return attachment ? attachment.fileUrl : '#';
+  if (!attachment) throw apiError('Attachment not found', 404);
+
+  const link = document.createElement('a');
+  link.href = attachment.fileUrl;
+  link.download = fileName || attachment.fileName || 'download';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 // ---------------------------------------------------------------------------

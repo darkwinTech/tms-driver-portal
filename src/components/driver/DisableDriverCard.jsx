@@ -6,7 +6,7 @@ import { DRIVER_FIELDS } from '../../utils/constants.js';
  * disable and why.
  */
 export default function DisableDriverCard({ driver, onRemove }) {
-  const fields = DRIVER_FIELDS.filter((f) => f.key !== 'username');
+  const fields = DRIVER_FIELDS.filter((f) => f.key !== 'username' && !f.createOnly && !f.hiddenFromRequester);
 
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">

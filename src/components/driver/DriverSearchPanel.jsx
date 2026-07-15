@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { searchDrivers } from '../../api/drivers.js';
+import { searchDrivers, listMyCompletedDrivers } from '../../api/drivers.js';
 
 /**
  * Search box + results table used by Modify Driver and Disable Driver
  * requests to look up an existing driver before acting on them, instead of
- * starting from a blank entry form.
+ * starting from a blank entry form. Scoped to drivers created via this
+ * requester's own completed Create Driver requests.
  */
 export default function DriverSearchPanel({ mode = 'modify', excludeUsernames = [], onSelect }) {
   const [query, setQuery] = useState('');
@@ -25,15 +26,27 @@ export default function DriverSearchPanel({ mode = 'modify', excludeUsernames = 
     }
   }
 
+  async function handleViewAll() {
+    setQuery('');
+    setLoading(true);
+    setSearched(true);
+    try {
+      const res = await listMyCompletedDrivers();
+      setResults(res.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div>
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+      <form onSubmit={handleSearch} className="flex flex-wrap gap-2 mb-4">
         <input
-          type="email"
+          type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by email, e.g. firstname.lastname@asmo.com"
-          className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+          placeholder="Search by first name, username/email, or phone"
+          className="flex-1 min-w-[220px] border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
         />
         <button
           type="submit"
@@ -41,6 +54,14 @@ export default function DriverSearchPanel({ mode = 'modify', excludeUsernames = 
           className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
         >
           {loading ? 'Searching...' : 'Search'}
+        </button>
+        <button
+          type="button"
+          onClick={handleViewAll}
+          disabled={loading}
+          className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+        >
+          View All
         </button>
       </form>
 
@@ -51,7 +72,7 @@ export default function DriverSearchPanel({ mode = 'modify', excludeUsernames = 
               <tr>
                 <th className="px-3 py-2 text-left">Username</th>
                 <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-left">Customer</th>
+                <th className="px-3 py-2 text-left">Phone</th>
                 <th className="px-3 py-2 text-left">Status</th>
                 <th className="px-3 py-2 w-20" />
               </tr>
@@ -71,7 +92,7 @@ export default function DriverSearchPanel({ mode = 'modify', excludeUsernames = 
                   <tr key={d.username} className="border-t border-gray-100">
                     <td className="px-3 py-2 font-medium">{d.username}</td>
                     <td className="px-3 py-2">{d.firstName} {d.lastName}</td>
-                    <td className="px-3 py-2">{d.customerGroup}</td>
+                    <td className="px-3 py-2">{d.phone}</td>
                     <td className="px-3 py-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${d.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                         {d.status}
