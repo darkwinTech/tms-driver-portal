@@ -503,9 +503,9 @@ export async function createRequest(payload) {
       email: d.email,
       phone: d.phone,
       role: 'Privileged User',
-      customerGroup: d.customerGroup || '',
-      driverClass: d.driverClass || '',
-      operatingHours: d.operatingHours || '',
+      //customerGroup: d.customerGroup || '',
+      //driverClass: d.driverClass || '',
+      //operatingHours: d.operatingHours || '',
       licenseNumber: d.licenseNumber || '',
       licenseExpiry: d.licenseExpiry || '',
       hasInsurance: d.hasInsurance || '',
@@ -652,9 +652,9 @@ export async function resubmitRequest(id, payload) {
       email: d.email,
       phone: d.phone,
       role: 'Privileged User',
-      customerGroup: d.customerGroup || '',
-      driverClass: d.driverClass || '',
-      operatingHours: d.operatingHours || '',
+      //customerGroup: d.customerGroup || '',
+      //driverClass: d.driverClass || '',
+      //operatingHours: d.operatingHours || '',
       licenseNumber: d.licenseNumber || '',
       licenseExpiry: d.licenseExpiry || '',
       hasInsurance: d.hasInsurance || '',
@@ -736,7 +736,7 @@ export async function downloadAttachment(requestId, attachmentId, fileName) {
 // ---------------------------------------------------------------------------
 export async function downloadExcelTemplate() {
   await delay(100);
-  return { data: buildTemplateBlob() };
+  return { data: await buildTemplateBlob() };
 }
 
 export async function parseExcelUpload(file) {
