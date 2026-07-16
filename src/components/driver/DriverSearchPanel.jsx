@@ -1,71 +1,64 @@
 import { useState } from 'react';
-import { searchDrivers, listMyCompletedDrivers } from '../../api/drivers.js';
+import { listMyCompletedDrivers, driverMatchesQuery } from '../../api/drivers.js';
 
 /**
  * Search box + results table used by Modify Driver and Disable Driver
  * requests to look up an existing driver before acting on them, instead of
  * starting from a blank entry form. Scoped to drivers created via this
  * requester's own completed Create Driver requests.
+ *
+ * The full scoped list is fetched once (via "View All", or lazily the first
+ * time the user types before clicking it) and then filtered live, keystroke
+ * by keystroke, entirely client-side - no per-keystroke network round-trip.
  */
 export default function DriverSearchPanel({ mode = 'modify', excludeUsernames = [], onSelect }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState(null);
+  const [allDrivers, setAllDrivers] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
 
-  async function handleSearch(e) {
-    e.preventDefault();
-    if (!query.trim()) return;
+  async function loadAllDrivers() {
     setLoading(true);
-    setSearched(true);
-    try {
-      const res = await searchDrivers(query.trim());
-      setResults(res.data);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleViewAll() {
-    setQuery('');
-    setLoading(true);
-    setSearched(true);
     try {
       const res = await listMyCompletedDrivers();
-      setResults(res.data);
+      setAllDrivers(res.data);
     } finally {
       setLoading(false);
     }
   }
+
+  function handleViewAll() {
+    setQuery('');
+    loadAllDrivers();
+  }
+
+  function handleQueryChange(value) {
+    setQuery(value);
+    if (allDrivers === null) loadAllDrivers();
+  }
+
+  const results = allDrivers === null ? null : allDrivers.filter((d) => driverMatchesQuery(d, query));
 
   return (
     <div>
-      <form onSubmit={handleSearch} className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           placeholder="Search by first name, username/email, or phone"
           className="flex-1 min-w-[220px] border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
         />
-        <button
-          type="submit"
-          disabled={loading || !query.trim()}
-          className="px-4 py-2 rounded-md bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50"
-        >
-          {loading ? 'Searching...' : 'Search'}
-        </button>
         <button
           type="button"
           onClick={handleViewAll}
           disabled={loading}
           className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
         >
-          View All
+          {loading ? 'Loading...' : 'View All'}
         </button>
-      </form>
+      </div>
 
-      {searched && !loading && (
+      {allDrivers !== null && !loading && (
         <div className="border border-gray-200 rounded-lg overflow-hidden">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">

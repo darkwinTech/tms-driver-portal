@@ -36,22 +36,17 @@ export async function listMyCompletedDrivers() {
   return { data: myCompletedDrivers(db, user) };
 }
 
-// Partial match across first name, username/email, and phone.
-export async function searchDrivers(query) {
-  await delay(200);
-  const user = currentUser();
-  const db = getDb();
+// Partial match across first name, username/email, and phone. An
+// empty/whitespace query matches everything - shared by DriverSearchPanel's
+// live client-side filtering so the match rules can't drift out of sync.
+export function driverMatchesQuery(driver, query) {
   const q = (query || '').trim().toLowerCase();
+  if (!q) return true;
 
-  if (!q) return { data: [] };
-
-  const results = myCompletedDrivers(db, user).filter(
-    (d) =>
-      d.firstName.toLowerCase().includes(q) ||
-      (d.username || '').toLowerCase().includes(q) ||
-      (d.email || '').toLowerCase().includes(q) ||
-      (d.phone || '').includes(q)
+  return (
+    driver.firstName.toLowerCase().includes(q) ||
+    (driver.username || '').toLowerCase().includes(q) ||
+    (driver.email || '').toLowerCase().includes(q) ||
+    (driver.phone || '').includes(q)
   );
-
-  return { data: results };
 }
