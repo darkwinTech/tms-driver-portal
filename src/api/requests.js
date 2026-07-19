@@ -821,6 +821,29 @@ export async function uploadAttachment(id, file, meta = {}) {
   return { data: { ...attachment, uploader: { id: user.id, fullName: user.fullName } } };
 }
 
+// Opens the attachment inline in a new browser tab (PDFs and images render
+// in the built-in viewer). Browsers refuse to open data: URLs as top-level
+// pages, so the stored data URL is converted to a Blob object URL first.
+export async function previewAttachment(requestId, attachmentId) {
+  const db = getDb();
+  const attachment = db.attachments.find((a) => a.id === Number(attachmentId) && a.requestId === Number(requestId));
+  if (!attachment) throw apiError('Attachment not found', 404);
+
+  // Open the tab synchronously while the click's user activation is still
+  // valid (popup blockers reject window.open after an await), then point it
+  // at the blob once it's ready.
+  const win = window.open('', '_blank');
+  const blob = await (await fetch(attachment.fileUrl)).blob();
+  const objectUrl = URL.createObjectURL(blob);
+  if (win) {
+    win.location = objectUrl;
+  } else {
+    window.open(objectUrl, '_blank');
+  }
+  // Give the new tab time to load the blob before releasing it.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
 // Attachments are stored as base64 data URLs in this mock build, so
 // "downloading" just means triggering a save from that data URL directly -
 // no network fetch needed (unlike a real backend, which streams the file).

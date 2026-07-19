@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { uploadAttachment, downloadAttachment } from '../../api/requests.js';
+import { uploadAttachment, downloadAttachment, previewAttachment } from '../../api/requests.js';
 
 export default function AttachmentsList({ requestId, attachments = [], onUploaded, readOnly = false }) {
   const fileInputRef = useRef(null);
@@ -38,14 +38,23 @@ export default function AttachmentsList({ requestId, attachments = [], onUploade
               📎 {a.docType ? `Driver ${a.driverIndex + 1} — ${a.docType}: ` : ''}
               {a.fileName}
             </span>
-            <button
-              type="button"
-              onClick={() => handleDownload(a)}
-              disabled={downloadingId === a.id}
-              className="text-primary-600 hover:underline text-xs shrink-0 ml-2 disabled:opacity-50"
-            >
-              {downloadingId === a.id ? 'Downloading…' : 'Download'}
-            </button>
+            <span className="shrink-0 ml-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => previewAttachment(requestId, a.id)}
+                className="text-primary-600 hover:underline text-xs"
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload(a)}
+                disabled={downloadingId === a.id}
+                className="text-primary-600 hover:underline text-xs disabled:opacity-50"
+              >
+                {downloadingId === a.id ? 'Downloading…' : 'Download'}
+              </button>
+            </span>
           </li>
         ))}
       </ul>
