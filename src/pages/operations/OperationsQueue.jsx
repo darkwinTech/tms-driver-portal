@@ -6,9 +6,15 @@ import EmptyState from '../../components/common/EmptyState.jsx';
 import Spinner from '../../components/common/Spinner.jsx';
 import { formatDate } from '../../utils/statusColors.js';
 
-const STATUS_OPTIONS = ['', 'Submitted', 'Under Review', 'Returned to Requester', 'Processing', 'Completed', 'Rejected'];
+const STATUS_OPTIONS = ['', 'Submitted', 'Under Review', 'Processing', 'Returned to Requester', 'Completed', 'Rejected'];
 
-export default function RequestQueue() {
+/**
+ * Incoming request queue for the Operations role - the first stage of the
+ * review workflow. "Open" navigates to the Operations request details page
+ * where the review actions (Start Review / Approve / Return / Reject) and
+ * the Processing-stage driver profile completion live.
+ */
+export default function OperationsQueue() {
   const [requests, setRequests] = useState([]);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('');
@@ -39,7 +45,10 @@ export default function RequestQueue() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-gray-800">Request Queue</h2>
+      <div>
+        <h2 className="text-xl font-semibold text-gray-800">Request Queue</h2>
+        <p className="text-sm text-gray-500">Incoming requests awaiting Operations review.</p>
+      </div>
 
       <div className="flex flex-wrap gap-3">
         <form onSubmit={handleSearchSubmit} className="flex gap-2 flex-1 min-w-[220px] sm:flex-none">
@@ -78,7 +87,7 @@ export default function RequestQueue() {
                 <th className="px-5 py-2 text-left">Type</th>
                 <th className="px-5 py-2 text-left">Submitted</th>
                 <th className="px-5 py-2 text-left">Status</th>
-                <th className="px-5 py-2 text-left">Assigned To</th>
+                <th className="px-5 py-2 text-left">Drivers</th>
                 <th className="px-5 py-2 text-right">Actions</th>
               </tr>
             </thead>
@@ -90,9 +99,12 @@ export default function RequestQueue() {
                   <td className="px-5 py-2.5">{r.requestType?.name}</td>
                   <td className="px-5 py-2.5">{formatDate(r.submittedDate || r.createdAt)}</td>
                   <td className="px-5 py-2.5"><StatusBadge status={r.status?.name} /></td>
-                  <td className="px-5 py-2.5">{r.currentProcessor?.fullName || '-'}</td>
+                  <td className="px-5 py-2.5">{r.drivers?.length || 0}</td>
                   <td className="px-5 py-2.5 text-right">
-                    <Link to={`/queue/${r.id}`} className="text-primary-600 hover:underline text-xs">
+                    <Link
+                      to={`/ops/queue/${r.id}`}
+                      className="inline-block px-3 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:bg-primary-700"
+                    >
                       Open
                     </Link>
                   </td>

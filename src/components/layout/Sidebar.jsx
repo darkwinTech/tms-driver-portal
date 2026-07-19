@@ -15,13 +15,19 @@ const processorLinks = [
   { to: '/reports', label: 'Reports'},
 ];
 
+// Operations gets its own navigation - they are the first review stage and
+// work exclusively out of their request queue.
+const operationsLinks = [
+  { to: '/ops/queue', label: 'Request Queue' },
+];
+
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
     isActive ? 'bg-primary-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
   }`;
 
 export default function Sidebar({ open = false, onClose = () => {} }) {
-  const { isProcessor } = useAuth();
+  const { isProcessor, isOperations } = useAuth();
   const location = useLocation();
   const onNewRequestPage = NEW_REQUEST_SUBLINKS.some((l) => location.pathname === l.to);
   const [newRequestOpen, setNewRequestOpen] = useState(onNewRequestPage);
@@ -52,7 +58,13 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         />
       </NavLink>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {isProcessor ? (
+        {isOperations ? (
+          operationsLinks.map((link) => (
+            <NavLink key={link.to} to={link.to} onClick={onClose} className={navLinkClass}>
+              {link.label}
+            </NavLink>
+          ))
+        ) : isProcessor ? (
           processorLinks.map((link) => (
             <NavLink key={link.to} to={link.to} end={link.to === '/'} onClick={onClose} className={navLinkClass}>
               {link.label}

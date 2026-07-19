@@ -112,8 +112,14 @@ export default function NewRequest({ requestType }) {
   function validateDrivers(drivers) {
   const errors = [];
 
+  // createOnly fields (license, insurance, city, documents) only apply to
+  // Create Driver requests - Modify/Disable rows never carry them.
   const requiredKeys = DRIVER_FIELDS.filter(
-    (f) => f.required && !f.hiddenFromRequester && !(isEditMode && f.type === 'file')
+    (f) =>
+      f.required &&
+      !f.hiddenFromRequester &&
+      !(isEditMode && f.type === 'file') &&
+      !(f.createOnly && requestTypeName !== 'Create Driver')
   ).map((f) => f.key);
 
   drivers.forEach((driver, index) => {

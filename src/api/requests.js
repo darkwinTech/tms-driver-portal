@@ -335,7 +335,7 @@
 import { getDb, saveDb, delay } from '../mock/db.js';
 import { getSessionUser } from '../mock/session.js';
 import { hydrateRequestSummary, hydrateRequestFull, findUser } from '../mock/hydrate.js';
-import { isTransitionAllowed, isRemarksRequired } from '../mock/workflow.js';
+import { isTransitionAllowed, isRemarksRequired, OPERATIONS_PROFILE_FIELDS, driverProfileMissingFields } from '../mock/workflow.js';
 import { validateDriverRow } from '../utils/validators.js';
 import { generateRequestNumber } from '../mock/requestNumber.js';
 import { buildTemplateBlob, parseDriverExcelFile, buildDriversExportBlob } from '../mock/excel.js';
@@ -352,8 +352,14 @@ function currentUser() {
   return user;
 }
 
-function isProcessorRole(roleName) {
-  return roleName === 'Processor' || roleName === 'Admin';
+function isOperationsRole(roleName) {
+  return roleName === 'Operations' || roleName === 'Admin';
+}
+
+// Any internal staff role that can see every request (as opposed to
+// requesters, who only see their own).
+function isStaffRole(roleName) {
+  return roleName === 'Processor' || roleName === 'Operations' || roleName === 'Admin';
 }
 
 function validateDrivers(drivers, { requireUsername, requireCreateFields }) {
@@ -370,19 +376,19 @@ export async function getStats() {
   await delay();
   const user = currentUser();
   const db = getDb();
-  const isProcessor = isProcessorRole(user.role);
+  const isStaff = isStaffRole(user.role);
 
-  const rows = isProcessor ? db.requests : db.requests.filter((r) => r.requesterId === user.id);
+  const rows = isStaff ? db.requests : db.requests.filter((r) => r.requesterId === user.id);
   const counts = {};
   db.requestStatuses.forEach((s) => {
     counts[s] = rows.filter((r) => r.statusName === s).length;
   });
 
-  if (isProcessor) {
+  if (isStaff) {
     return {
       data: {
         newRequests: counts['Submitted'] || 0,
-        inProgress: (counts['Processing'] || 0) + (counts['Approved'] || 0),
+        inProgress: counts['Processing'] || 0,
         completed: counts['Completed'] || 0,
         rejected: counts['Rejected'] || 0,
         waitingApproval: (counts['Submitted'] || 0) + (counts['Under Review'] || 0),
@@ -394,7 +400,7 @@ export async function getStats() {
   return {
     data: {
       pending: (counts['Submitted'] || 0) + (counts['Under Review'] || 0) + (counts['Returned to Requester'] || 0),
-      approved: (counts['Approved'] || 0) + (counts['Processing'] || 0),
+      approved: counts['Processing'] || 0,
       rejected: counts['Rejected'] || 0,
       completed: counts['Completed'] || 0,
       byStatus: counts,
@@ -407,9 +413,9 @@ export async function listRequests(params = {}) {
   await delay();
   const user = currentUser();
   const db = getDb();
-  const isProcessor = isProcessorRole(user.role);
+  const isStaff = isStaffRole(user.role);
 
-  let rows = isProcessor ? db.requests.slice() : db.requests.filter((r) => r.requesterId === user.id);
+  let rows = isStaff ? db.requests.slice() : db.requests.filter((r) => r.requesterId === user.id);
 
   if (params.status) rows = rows.filter((r) => r.statusName === params.status);
   if (params.type) rows = rows.filter((r) => r.requestTypeName === params.type);
@@ -439,8 +445,7 @@ export async function getRequest(id) {
   const row = db.requests.find((r) => r.id === Number(id));
   if (!row) throw apiError('Request not found', 404);
 
-  const isProcessor = isProcessorRole(user.role);
-  if (!isProcessor && row.requesterId !== user.id) {
+  if (!isStaffRole(user.role) && row.requesterId !== user.id) {
     throw apiError('You do not have access to this request', 403);
   }
 
@@ -485,6 +490,7 @@ export async function createRequest(payload) {
     businessJustification: businessJustification || '',
     entryMethod: entryMethod || 'Manual',
     currentProcessorId: null,
+    driverProfilesCompletedAt: null,
     submittedDate: now,
     completedDate: null,
     effectiveDate: effectiveDate || null,
@@ -532,7 +538,9 @@ export async function createRequest(payload) {
 }
 
 // ---------------------------------------------------------------------------
-// Operations approves, returns for correction, or rejects outright:
+// Operations reviews first: Start Review moves Submitted -> Under Review,
+// then Approve moves it into Processing (where they complete the hidden
+// driver-profile fields), or they hand back a negative outcome:
 //   - Returned to Requester: non-terminal, requester can edit + resubmit.
 //   - Rejected: terminal dead-end.
 // Both negative outcomes require a remark explaining why.
@@ -553,10 +561,10 @@ export async function updateStatus(id, targetStatus, remarks) {
   }
 
   const now = new Date().toISOString();
-  const isProcessor = isProcessorRole(user.role);
+  const isStaff = isStaffRole(user.role);
 
   row.statusName = targetStatus;
-  row.currentProcessorId = isProcessor ? user.id : row.currentProcessorId;
+  row.currentProcessorId = isStaff ? user.id : row.currentProcessorId;
   row.completedDate = targetStatus === 'Completed' ? now : row.completedDate;
   row.updatedAt = now;
 
@@ -590,6 +598,101 @@ export async function updateStatus(id, targetStatus, remarks) {
       ? `Your request status changed to "${targetStatus}". Remarks: ${remarks}`
       : `Your request status changed to "${targetStatus}".`,
     isRead: false,
+    createdAt: now,
+  });
+
+  saveDb();
+  return { data: hydrateRequestFull(row) };
+}
+
+// ---------------------------------------------------------------------------
+// Operations fills in the requester-hidden profile fields (Group/Customer,
+// Driver Class, Operating Hours) for one driver while the request is in
+// Processing.
+export async function updateDriverProfile(requestId, driverId, fields = {}) {
+  await delay();
+  const user = currentUser();
+  const db = getDb();
+  const row = db.requests.find((r) => r.id === Number(requestId));
+  if (!row) throw apiError('Request not found', 404);
+
+  if (!isOperationsRole(user.role)) {
+    throw apiError('Only Operations can update driver profiles', 403);
+  }
+  if (row.statusName !== 'Processing') {
+    throw apiError('Driver profiles can only be updated while the request is in Processing');
+  }
+  if (row.driverProfilesCompletedAt) {
+    throw apiError('Driver profiles for this request have already been completed');
+  }
+
+  const driver = db.drivers.find((d) => d.id === Number(driverId) && d.requestId === row.id);
+  if (!driver) throw apiError('Driver not found on this request', 404);
+
+  OPERATIONS_PROFILE_FIELDS.forEach(({ key }) => {
+    if (key in fields) driver[key] = (fields[key] || '').trim();
+  });
+  row.updatedAt = new Date().toISOString();
+
+  saveDb();
+  return { data: hydrateRequestFull(row) };
+}
+
+// ---------------------------------------------------------------------------
+// "Complete Driver Profiles": validates that every driver on the request has
+// all three Operations fields filled in, then marks the Operations phase as
+// finished. The workflow deliberately stops here - the request stays in
+// Processing. A future sprint will hook routing to the AD Team / secondary
+// processors onto this point, which is why it only stamps
+// driverProfilesCompletedAt instead of moving the status.
+export async function completeDriverProfiles(requestId) {
+  await delay();
+  const user = currentUser();
+  const db = getDb();
+  const row = db.requests.find((r) => r.id === Number(requestId));
+  if (!row) throw apiError('Request not found', 404);
+
+  if (!isOperationsRole(user.role)) {
+    throw apiError('Only Operations can complete driver profiles', 403);
+  }
+  if (row.statusName !== 'Processing') {
+    throw apiError('Driver profiles can only be completed while the request is in Processing');
+  }
+  if (row.driverProfilesCompletedAt) {
+    throw apiError('Driver profiles for this request have already been completed');
+  }
+
+  const drivers = db.drivers.filter((d) => d.requestId === row.id);
+  const validationErrors = drivers
+    .map((d) => ({ driver: d, missing: driverProfileMissingFields(d) }))
+    .filter((entry) => entry.missing.length)
+    .map(({ driver, missing }) => ({
+      driverId: driver.id,
+      driverName: `${driver.firstName} ${driver.lastName}`,
+      missing,
+    }));
+
+  if (validationErrors.length) {
+    throw apiError(
+      'Group / Customer, Driver Class and Operating Hours must be filled in for every driver before completing',
+      400,
+      { validationErrors }
+    );
+  }
+
+  const now = new Date().toISOString();
+  row.driverProfilesCompletedAt = now;
+  row.updatedAt = now;
+
+  // oldStatus null renders this as a plain "Processing" milestone in the
+  // timeline (the status doesn't actually change).
+  db.history.push({
+    id: db.nextIds.history++,
+    requestId: row.id,
+    oldStatus: null,
+    newStatus: 'Processing',
+    changedBy: user.id,
+    remarks: 'Driver profiles completed by Operations.',
     createdAt: now,
   });
 
@@ -639,6 +742,7 @@ export async function resubmitRequest(id, payload) {
   row.effectiveDate = effectiveDate || null;
   row.statusName = 'Submitted';
   row.currentProcessorId = null;
+  row.driverProfilesCompletedAt = null;
   row.updatedAt = now;
 
   db.drivers = db.drivers.filter((d) => d.requestId !== row.id);

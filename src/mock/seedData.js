@@ -14,12 +14,15 @@ export function buildSeed() {
     { id: 3, employeeId: 'EMP003', fullName: 'IT TMS Processor', email: 'it.tms@asmo.com', department: 'IT Solutions', role: 'Processor', managerId: null, isActive: true },
     { id: 4, employeeId: 'EMP004', fullName: 'AD Team Processor', email: 'ad.team@asmo.com', department: 'Active Directory', role: 'Processor', managerId: null, isActive: true },
     { id: 5, employeeId: 'EMP005', fullName: 'System Admin', email: 'admin@asmo.com', department: 'IT Solutions', role: 'Admin', managerId: null, isActive: true },
+    { id: 6, employeeId: 'EMP006', fullName: 'Operations Team', email: 'operations@asmo.com', department: 'Operations', role: 'Operations', managerId: null, isActive: true },
   ];
 
   const requestTypes = ['Create Driver', 'Modify Driver', 'Disable Driver'];
-  // Two distinct negative outcomes: "Returned to Requester" is non-terminal
-  // (editable/resubmittable), "Rejected" is a dead end.
-  const requestStatuses = ['Submitted', 'Under Review', 'Returned to Requester', 'Approved', 'Processing', 'Completed', 'Rejected'];
+  // Operations is the first review stage. Two distinct negative outcomes:
+  // "Returned to Requester" is non-terminal (editable/resubmittable),
+  // "Rejected" is a dead end. "Completed" is reserved for a future sprint
+  // and never triggered automatically.
+  const requestStatuses = ['Submitted', 'Under Review', 'Returned to Requester', 'Processing', 'Completed', 'Rejected'];
 
   const drivers = [
     { id: 1, requestId: 1, username: 'mohammed.saeed', firstName: 'Mohammed', lastName: 'Saeed', email: 'mohammed.saeed@asmo.com', phone: '0551234567', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', licenseNumber: '21832743719', licenseExpiry: '2026-11-30', hasInsurance: 'Yes', city: 'Khobar', poNumber: '4821211244768', poExpiry: '2026-11-30' },
@@ -28,58 +31,72 @@ export function buildSeed() {
     { id: 4, requestId: 3, username: '', firstName: 'Yousef', lastName: 'Hamdan', email: 'yousef.hamdan@asmo.com', phone: '0567891234', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '10Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', poNumber: '', poExpiry: '' },
     { id: 5, requestId: 4, username: '', firstName: 'Saad', lastName: 'Omar', email: 'saad.omar@asmo.com', phone: '0501122334', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '19921147753', licenseExpiry: '2026-08-01', hasInsurance: 'No', city: 'Riyadh', poNumber: '4821211244999', poExpiry: '2026-08-01' },
     { id: 6, requestId: 5, username: '', firstName: 'Turki', lastName: 'Salem', email: 'turki.salem@asmo.com', phone: '0567123344', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '10456782233', licenseExpiry: '2026-04-15', hasInsurance: 'Yes', city: 'Dammam', poNumber: '4821211255001', poExpiry: '2026-10-10' },
+    { id: 7, requestId: 6, username: '', firstName: 'Rakan', lastName: 'Harbi', email: 'rakan.harbi@asmo.com', phone: '0533221144', role: 'Privileged User', customerGroup: 'NADEC', driverClass: '', operatingHours: '', licenseNumber: '11223344556', licenseExpiry: '2027-01-20', hasInsurance: 'Yes', city: 'Riyadh', poNumber: '4821211266002', poExpiry: '2027-01-20' },
+    { id: 8, requestId: 6, username: '', firstName: 'Majed', lastName: 'Shammari', email: 'majed.shammari@asmo.com', phone: '0544332211', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '99887766554', licenseExpiry: '2026-12-05', hasInsurance: 'Yes', city: 'Riyadh', poNumber: '4821211266002', poExpiry: '2027-01-20' },
   ];
 
   const requests = [
     {
       id: 1, requestNumber: 'REQ-2026-0001', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Completed',
       description: 'Onboard two new drivers for the ARCO contract.', businessJustification: 'Fleet expansion for Q3 deliveries.',
-      entryMethod: 'Manual', currentProcessorId: 3,
+      entryMethod: 'Manual', currentProcessorId: 3, driverProfilesCompletedAt: daysAgo(4),
       submittedDate: daysAgo(9), completedDate: daysAgo(2), createdAt: daysAgo(9), updatedAt: daysAgo(2),
     },
     {
       id: 2, requestNumber: 'REQ-2026-0002', requesterId: 1, requestTypeName: 'Modify Driver', statusName: 'Under Review',
       description: 'Update driver class and operating hours for Ahmad Kabbani.', businessJustification: 'Driver reassigned to a heavier vehicle class.',
-      entryMethod: 'Manual', currentProcessorId: 3,
+      entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null,
       submittedDate: daysAgo(3), completedDate: null, createdAt: daysAgo(3), updatedAt: daysAgo(1),
     },
     {
       id: 3, requestNumber: 'REQ-2026-0003', requesterId: 2, requestTypeName: 'Disable Driver', statusName: 'Submitted',
       description: 'Driver left the company.', businessJustification: 'Offboarding - access must be revoked immediately.',
-      entryMethod: 'Manual', currentProcessorId: null, effectiveDate: daysAgo(-1),
+      entryMethod: 'Manual', currentProcessorId: null, effectiveDate: daysAgo(-1), driverProfilesCompletedAt: null,
       submittedDate: daysAgo(1), completedDate: null, createdAt: daysAgo(1), updatedAt: daysAgo(1),
     },
     {
       id: 4, requestNumber: 'REQ-2026-0004', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Rejected',
       description: 'Onboard a driver for the temporary CUEU route.', businessJustification: 'Short-term contract coverage.',
-      entryMethod: 'Manual', currentProcessorId: 4,
+      entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null,
       submittedDate: daysAgo(6), completedDate: null, createdAt: daysAgo(6), updatedAt: daysAgo(5),
     },
     {
       id: 5, requestNumber: 'REQ-2026-0005', requesterId: 2, requestTypeName: 'Create Driver', statusName: 'Returned to Requester',
       description: 'Onboard a new driver for the SABIC route.', businessJustification: 'Replacing a driver who resigned.',
-      entryMethod: 'Manual', currentProcessorId: 4,
+      entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null,
       submittedDate: daysAgo(2), completedDate: null, createdAt: daysAgo(2), updatedAt: daysAgo(1),
+    },
+    {
+      id: 6, requestNumber: 'REQ-2026-0006', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Processing',
+      description: 'Onboard two drivers for the new NADEC distribution route.', businessJustification: 'New customer contract starting next month.',
+      entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null,
+      submittedDate: daysAgo(4), completedDate: null, createdAt: daysAgo(4), updatedAt: daysAgo(1),
     },
   ];
 
   const history = [
     { id: 1, requestId: 1, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(9) },
-    { id: 2, requestId: 1, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 3, remarks: null, createdAt: daysAgo(7) },
-    { id: 3, requestId: 1, oldStatus: 'Under Review', newStatus: 'Approved', changedBy: 3, remarks: 'Looks good, proceeding.', createdAt: daysAgo(6) },
-    { id: 4, requestId: 1, oldStatus: 'Approved', newStatus: 'Processing', changedBy: 3, remarks: null, createdAt: daysAgo(4) },
+    { id: 2, requestId: 1, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(7) },
+    { id: 3, requestId: 1, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Looks good, proceeding.', createdAt: daysAgo(6) },
+    { id: 4, requestId: 1, oldStatus: null, newStatus: 'Processing', changedBy: 6, remarks: 'Driver profiles completed by Operations.', createdAt: daysAgo(4) },
     { id: 5, requestId: 1, oldStatus: 'Processing', newStatus: 'Completed', changedBy: 3, remarks: 'Accounts created in AD and DCT.', createdAt: daysAgo(2) },
 
     { id: 6, requestId: 2, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(3) },
-    { id: 7, requestId: 2, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 3, remarks: null, createdAt: daysAgo(1) },
+    { id: 7, requestId: 2, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1) },
 
     { id: 8, requestId: 3, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(1) },
 
     { id: 9, requestId: 4, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(6) },
-    { id: 10, requestId: 4, oldStatus: 'Submitted', newStatus: 'Rejected', changedBy: 4, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
+    { id: 10, requestId: 4, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(5.5) },
+    { id: 11, requestId: 4, oldStatus: 'Under Review', newStatus: 'Rejected', changedBy: 6, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
 
-    { id: 11, requestId: 5, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(2) },
-    { id: 12, requestId: 5, oldStatus: 'Submitted', newStatus: 'Returned to Requester', changedBy: 4, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
+    { id: 12, requestId: 5, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(2) },
+    { id: 13, requestId: 5, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1.5) },
+    { id: 14, requestId: 5, oldStatus: 'Under Review', newStatus: 'Returned to Requester', changedBy: 6, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
+
+    { id: 15, requestId: 6, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(4) },
+    { id: 16, requestId: 6, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(2) },
+    { id: 17, requestId: 6, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(1) },
   ];
 
 
@@ -107,7 +124,7 @@ export function buildSeed() {
   ];
 
   return {
-    nextIds: { user: 6, request: 6, driver: 7, history: 13, attachment: 1, notification: 5 },
+    nextIds: { user: 7, request: 7, driver: 9, history: 18, attachment: 1, notification: 5 },
     users,
     requestTypes,
     requestStatuses,

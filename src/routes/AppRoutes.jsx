@@ -13,10 +13,13 @@ import ProcessorDashboard from '../pages/processor/ProcessorDashboard.jsx';
 import RequestQueue from '../pages/processor/RequestQueue.jsx';
 import ProcessRequest from '../pages/processor/ProcessRequest.jsx';
 import Reports from '../pages/processor/Reports.jsx';
+import OperationsQueue from '../pages/operations/OperationsQueue.jsx';
+import OperationsRequestDetails from '../pages/operations/OperationsRequestDetails.jsx';
 
 function HomeRedirect() {
-  const { isProcessor, loading } = useAuth();
+  const { isProcessor, isOperations, loading } = useAuth();
   if (loading) return <Spinner full />;
+  if (isOperations) return <Navigate to="/ops/queue" replace />;
   return isProcessor ? <ProcessorDashboard /> : <RequesterDashboard />;
 }
 
@@ -45,6 +48,25 @@ export default function AppRoutes() {
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/requests/:id" element={<RequestDetails />} />
         <Route path="/requests/:id/edit" element={<NewRequest />} />
+
+        {/* Operations - first stage of the review workflow, separate from
+            the generic Processor experience. */}
+        <Route
+          path="/ops/queue"
+          element={
+            <ProtectedRoute allowedRoles={['Operations', 'Admin']}>
+              <OperationsQueue />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ops/queue/:id"
+          element={
+            <ProtectedRoute allowedRoles={['Operations', 'Admin']}>
+              <OperationsRequestDetails />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Processor */}
         <Route
