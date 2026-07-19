@@ -28,9 +28,23 @@ just this one command.
 | --- | --- |
 | fedx@example.com | Requester |
 | hani.alturaiki@asmo.com | Requester |
+| operations@asmo.com | Operations |
+| ad.team@asmo.com | AD Team |
 | it.tms@asmo.com | Processor |
-| ad.team@asmo.com | Processor |
 | admin@asmo.com | Admin |
+
+### Workflow
+
+`Submitted → Under Review → Processing → AD Team Review → RPA Triggered → Completed`
+
+Operations reviews first (they can also Return to Requester or Reject).
+Completing the driver profiles in Processing hands the request to the **AD
+Team**, who either Reject (mandatory reason) or **Approve & Trigger RPA** —
+the app calls a Power Automate flow (`src/services/powerAutomate.js`, a
+placeholder until the real flow URL is configured) which owns the handoff
+email; the app never sends emails itself. Account creation happens outside
+this application, so the AD Team manually clicks **Mark as Completed** once
+the external process confirms success.
 
 The seed data already includes a few sample requests in different statuses
 (Completed, Under Review, Draft, Rejected) so the dashboards aren't empty on
