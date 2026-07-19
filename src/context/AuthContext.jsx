@@ -38,9 +38,10 @@ export function AuthProvider({ children }) {
 
   const isProcessor = user?.role === 'Processor' || user?.role === 'Admin';
   const isOperations = user?.role === 'Operations';
+  const isAdTeam = user?.role === 'AD Team';
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isProcessor, isOperations }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, isProcessor, isOperations, isAdTeam }}>
       {children}
     </AuthContext.Provider>
   );
@@ -51,4 +52,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
   return ctx;
 }
-// thsi is a comment just to try what will happen 

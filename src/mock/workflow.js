@@ -5,15 +5,19 @@
 // "Rejected" is a terminal dead end.
 //
 // "Processing" is where Operations completes the hidden driver-profile
-// fields (Group/Customer, Driver Class, Operating Hours). Once the profiles
-// are complete the workflow intentionally stops - a future sprint will add
-// routing to the AD Team / secondary processors here, which is why
-// Processing has no outgoing transitions yet ("Completed" is reserved and
-// never triggered automatically).
+// fields (Group/Customer, Driver Class, Operating Hours). Completing the
+// profiles hands the request over to the AD Team ("AD Team Review"). The AD
+// Team then either rejects (with a mandatory reason) or approves - approval
+// triggers the Power Automate RPA flow ("RPA Triggered", the flow sends the
+// handoff email; account creation itself happens outside this app). Once
+// the AD Team confirms the external account creation succeeded, they
+// manually mark the request "Completed".
 export const TRANSITIONS = {
   Submitted: { 'Under Review': 'Operations' },
   'Under Review': { Processing: 'Operations', 'Returned to Requester': 'Operations', Rejected: 'Operations' },
-  Processing: {},
+  Processing: { 'AD Team Review': 'Operations' },
+  'AD Team Review': { 'RPA Triggered': 'AD Team', Rejected: 'AD Team' },
+  'RPA Triggered': { Completed: 'AD Team' },
 };
 
 export function isTransitionAllowed(currentStatusName, targetStatusName, roleName) {

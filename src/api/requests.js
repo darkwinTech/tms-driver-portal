@@ -339,6 +339,7 @@ import { isTransitionAllowed, isRemarksRequired, OPERATIONS_PROFILE_FIELDS, driv
 import { validateDriverRow } from '../utils/validators.js';
 import { generateRequestNumber } from '../mock/requestNumber.js';
 import { buildTemplateBlob, parseDriverExcelFile, buildDriversExportBlob } from '../mock/excel.js';
+import { triggerRpaFlow } from '../services/powerAutomate.js';
 
 function apiError(message, status = 400, extra = {}) {
   const error = new Error(message);
@@ -356,10 +357,29 @@ function isOperationsRole(roleName) {
   return roleName === 'Operations' || roleName === 'Admin';
 }
 
-// Any internal staff role that can see every request (as opposed to
-// requesters, who only see their own).
+function isAdTeamRole(roleName) {
+  return roleName === 'AD Team' || roleName === 'Admin';
+}
+
+// Any internal staff role that can see requests beyond their own (as
+// opposed to requesters, who only see requests they submitted).
 function isStaffRole(roleName) {
-  return roleName === 'Processor' || roleName === 'Operations' || roleName === 'Admin';
+  return roleName === 'Processor' || roleName === 'Operations' || roleName === 'AD Team' || roleName === 'Admin';
+}
+
+// Statuses that mean the request currently sits with the AD Team.
+const AD_STAGE_STATUSES = ['AD Team Review', 'RPA Triggered'];
+
+// A request is visible to the AD Team once it has reached their stage -
+// either it is sitting there now, or it passed through "AD Team Review" on
+// its way to Completed/Rejected. Requests still with Operations (Submitted,
+// Under Review, Processing, ...) are hidden from the AD Team queue.
+function isAdStageVisible(db, row) {
+  if (AD_STAGE_STATUSES.includes(row.statusName)) return true;
+  if (['Completed', 'Rejected'].includes(row.statusName)) {
+    return db.history.some((h) => h.requestId === row.id && h.newStatus === 'AD Team Review');
+  }
+  return false;
 }
 
 function validateDrivers(drivers, { requireUsername, requireCreateFields }) {
@@ -378,17 +398,38 @@ export async function getStats() {
   const db = getDb();
   const isStaff = isStaffRole(user.role);
 
-  const rows = isStaff ? db.requests : db.requests.filter((r) => r.requesterId === user.id);
+  let rows;
+  if (user.role === 'AD Team') {
+    // The AD Team only sees (and counts) requests that reached their stage.
+    rows = db.requests.filter((r) => isAdStageVisible(db, r));
+  } else if (isStaff) {
+    rows = db.requests;
+  } else {
+    rows = db.requests.filter((r) => r.requesterId === user.id);
+  }
+
   const counts = {};
   db.requestStatuses.forEach((s) => {
     counts[s] = rows.filter((r) => r.statusName === s).length;
   });
 
+  if (user.role === 'AD Team') {
+    return {
+      data: {
+        awaitingAction: counts['AD Team Review'] || 0,
+        rpaTriggered: counts['RPA Triggered'] || 0,
+        completed: counts['Completed'] || 0,
+        rejected: counts['Rejected'] || 0,
+        byStatus: counts,
+      },
+    };
+  }
+
   if (isStaff) {
     return {
       data: {
         newRequests: counts['Submitted'] || 0,
-        inProgress: counts['Processing'] || 0,
+        inProgress: (counts['Processing'] || 0) + (counts['AD Team Review'] || 0) + (counts['RPA Triggered'] || 0),
         completed: counts['Completed'] || 0,
         rejected: counts['Rejected'] || 0,
         waitingApproval: (counts['Submitted'] || 0) + (counts['Under Review'] || 0),
@@ -400,7 +441,7 @@ export async function getStats() {
   return {
     data: {
       pending: (counts['Submitted'] || 0) + (counts['Under Review'] || 0) + (counts['Returned to Requester'] || 0),
-      approved: counts['Processing'] || 0,
+      approved: (counts['Processing'] || 0) + (counts['AD Team Review'] || 0) + (counts['RPA Triggered'] || 0),
       rejected: counts['Rejected'] || 0,
       completed: counts['Completed'] || 0,
       byStatus: counts,
@@ -416,6 +457,10 @@ export async function listRequests(params = {}) {
   const isStaff = isStaffRole(user.role);
 
   let rows = isStaff ? db.requests.slice() : db.requests.filter((r) => r.requesterId === user.id);
+
+  // The AD Team's queue only contains requests that reached their stage -
+  // nothing still sitting with Operations.
+  if (user.role === 'AD Team') rows = rows.filter((r) => isAdStageVisible(db, r));
 
   if (params.status) rows = rows.filter((r) => r.statusName === params.status);
   if (params.type) rows = rows.filter((r) => r.requestTypeName === params.type);
@@ -447,6 +492,9 @@ export async function getRequest(id) {
 
   if (!isStaffRole(user.role) && row.requesterId !== user.id) {
     throw apiError('You do not have access to this request', 403);
+  }
+  if (user.role === 'AD Team' && !isAdStageVisible(db, row)) {
+    throw apiError('This request has not reached the AD Team stage yet', 403);
   }
 
   return { data: hydrateRequestFull(row) };
@@ -640,11 +688,10 @@ export async function updateDriverProfile(requestId, driverId, fields = {}) {
 
 // ---------------------------------------------------------------------------
 // "Complete Driver Profiles": validates that every driver on the request has
-// all three Operations fields filled in, then marks the Operations phase as
-// finished. The workflow deliberately stops here - the request stays in
-// Processing. A future sprint will hook routing to the AD Team / secondary
-// processors onto this point, which is why it only stamps
-// driverProfilesCompletedAt instead of moving the status.
+// all three Operations fields filled in, marks the Operations phase as
+// finished, and hands the request over to the AD Team ("AD Team Review").
+// The AD Team then owns the request: they approve (triggering the Power
+// Automate RPA flow) or reject it.
 export async function completeDriverProfiles(requestId) {
   await delay();
   const user = currentUser();
@@ -682,17 +729,85 @@ export async function completeDriverProfiles(requestId) {
 
   const now = new Date().toISOString();
   row.driverProfilesCompletedAt = now;
+  row.statusName = 'AD Team Review';
+  // Ownership moves to the AD Team queue; an AD Team member takes it over
+  // when they act on it.
+  row.currentProcessorId = null;
   row.updatedAt = now;
 
-  // oldStatus null renders this as a plain "Processing" milestone in the
-  // timeline (the status doesn't actually change).
   db.history.push({
     id: db.nextIds.history++,
     requestId: row.id,
-    oldStatus: null,
-    newStatus: 'Processing',
+    oldStatus: 'Processing',
+    newStatus: 'AD Team Review',
     changedBy: user.id,
-    remarks: 'Driver profiles completed by Operations.',
+    remarks: 'Driver profiles completed by Operations. Handed over to the AD Team.',
+    createdAt: now,
+  });
+
+  db.notifications.push({
+    id: db.nextIds.notification++,
+    userId: row.requesterId,
+    requestId: row.id,
+    title: `Request ${row.requestNumber} - AD Team Review`,
+    message: 'Your request status changed to "AD Team Review".',
+    isRead: false,
+    createdAt: now,
+  });
+
+  saveDb();
+  return { data: hydrateRequestFull(row) };
+}
+
+// ---------------------------------------------------------------------------
+// "Approve & Trigger RPA": the AD Team approves the request and triggers the
+// Power Automate RPA flow. The app itself never sends the handoff email -
+// it only calls the Power Automate integration point (see
+// src/services/powerAutomate.js), which owns email generation and delivery.
+// Account creation / AD provisioning / ServiceNow all happen outside this
+// application; the AD Team later confirms success by marking the request
+// Completed (updateStatus).
+export async function approveAndTriggerRpa(id) {
+  await delay();
+  const user = currentUser();
+  const db = getDb();
+  const row = db.requests.find((r) => r.id === Number(id));
+  if (!row) throw apiError('Request not found', 404);
+
+  if (!isAdTeamRole(user.role)) {
+    throw apiError('Only the AD Team can approve and trigger the RPA flow', 403);
+  }
+  if (row.statusName !== 'AD Team Review') {
+    throw apiError(`Cannot trigger the RPA flow while the request is "${row.statusName}"`);
+  }
+
+  // Hand the fully-hydrated request to the Power Automate integration point.
+  const rpaResult = await triggerRpaFlow(hydrateRequestFull(row));
+
+  const now = new Date().toISOString();
+  row.statusName = 'RPA Triggered';
+  row.currentProcessorId = user.id;
+  row.updatedAt = now;
+
+  db.history.push({
+    id: db.nextIds.history++,
+    requestId: row.id,
+    oldStatus: 'AD Team Review',
+    newStatus: 'RPA Triggered',
+    changedBy: user.id,
+    remarks: rpaResult.simulated
+      ? 'Approved by AD Team - Request sent to ServiceNow.'
+      : 'Approved by AD Team - Request sent to ServiceNow.',
+    createdAt: now,
+  });
+
+  db.notifications.push({
+    id: db.nextIds.notification++,
+    userId: row.requesterId,
+    requestId: row.id,
+    title: `Request ${row.requestNumber} - RPA Triggered`,
+    message: 'Your request status changed to "RPA Triggered".',
+    isRead: false,
     createdAt: now,
   });
 

@@ -1,6 +1,6 @@
 import { buildSeed } from './seedData.js';
 
-const STORAGE_KEY = 'tms_mock_db_v4';
+const STORAGE_KEY = 'tms_mock_db_v5';
 
 function load() {
   try {

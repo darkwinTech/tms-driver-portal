@@ -15,11 +15,15 @@ import ProcessRequest from '../pages/processor/ProcessRequest.jsx';
 import Reports from '../pages/processor/Reports.jsx';
 import OperationsQueue from '../pages/operations/OperationsQueue.jsx';
 import OperationsRequestDetails from '../pages/operations/OperationsRequestDetails.jsx';
+import AdTeamDashboard from '../pages/adteam/AdTeamDashboard.jsx';
+import AdTeamQueue from '../pages/adteam/AdTeamQueue.jsx';
+import AdTeamRequestDetails from '../pages/adteam/AdTeamRequestDetails.jsx';
 
 function HomeRedirect() {
-  const { isProcessor, isOperations, loading } = useAuth();
+  const { isProcessor, isOperations, isAdTeam, loading } = useAuth();
   if (loading) return <Spinner full />;
   if (isOperations) return <Navigate to="/ops/queue" replace />;
+  if (isAdTeam) return <AdTeamDashboard />;
   return isProcessor ? <ProcessorDashboard /> : <RequesterDashboard />;
 }
 
@@ -64,6 +68,25 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={['Operations', 'Admin']}>
               <OperationsRequestDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* AD Team - second stage of the workflow: owns requests after
+            Operations completes the driver profiles. */}
+        <Route
+          path="/ad/queue"
+          element={
+            <ProtectedRoute allowedRoles={['AD Team', 'Admin']}>
+              <AdTeamQueue />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ad/queue/:id"
+          element={
+            <ProtectedRoute allowedRoles={['AD Team', 'Admin']}>
+              <AdTeamRequestDetails />
             </ProtectedRoute>
           }
         />

@@ -12,17 +12,20 @@ export function buildSeed() {
     { id: 1, employeeId: 'EMP001', fullName: 'FedX', email: 'fedx@example.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
     { id: 2, employeeId: 'EMP002', fullName: 'Hani Alturaiki', email: 'hani.alturaiki@asmo.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
     { id: 3, employeeId: 'EMP003', fullName: 'IT TMS Processor', email: 'it.tms@asmo.com', department: 'IT Solutions', role: 'Processor', managerId: null, isActive: true },
-    { id: 4, employeeId: 'EMP004', fullName: 'AD Team Processor', email: 'ad.team@asmo.com', department: 'Active Directory', role: 'Processor', managerId: null, isActive: true },
+    { id: 4, employeeId: 'EMP004', fullName: 'AD Team', email: 'ad.team@asmo.com', department: 'Active Directory', role: 'AD Team', managerId: null, isActive: true },
     { id: 5, employeeId: 'EMP005', fullName: 'System Admin', email: 'admin@asmo.com', department: 'IT Solutions', role: 'Admin', managerId: null, isActive: true },
     { id: 6, employeeId: 'EMP006', fullName: 'Operations Team', email: 'operations@asmo.com', department: 'Operations', role: 'Operations', managerId: null, isActive: true },
   ];
 
   const requestTypes = ['Create Driver', 'Modify Driver', 'Disable Driver'];
-  // Operations is the first review stage. Two distinct negative outcomes:
-  // "Returned to Requester" is non-terminal (editable/resubmittable),
-  // "Rejected" is a dead end. "Completed" is reserved for a future sprint
-  // and never triggered automatically.
-  const requestStatuses = ['Submitted', 'Under Review', 'Returned to Requester', 'Processing', 'Completed', 'Rejected'];
+  // Operations is the first review stage, the AD Team the second. Two
+  // distinct negative outcomes at review time: "Returned to Requester" is
+  // non-terminal (editable/resubmittable), "Rejected" is a dead end. When
+  // Operations completes the driver profiles the request moves to
+  // "AD Team Review"; the AD Team then approves ("RPA Triggered" - Power
+  // Automate sends the handoff email) and finally marks it "Completed" once
+  // the external account creation is confirmed.
+  const requestStatuses = ['Submitted', 'Under Review', 'Returned to Requester', 'Processing', 'AD Team Review', 'RPA Triggered', 'Completed', 'Rejected'];
 
   const drivers = [
     { id: 1, requestId: 1, username: 'mohammed.saeed', firstName: 'Mohammed', lastName: 'Saeed', email: 'mohammed.saeed@asmo.com', phone: '0551234567', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', licenseNumber: '21832743719', licenseExpiry: '2026-11-30', hasInsurance: 'Yes', city: 'Khobar', poNumber: '4821211244768', poExpiry: '2026-11-30' },
@@ -33,13 +36,14 @@ export function buildSeed() {
     { id: 6, requestId: 5, username: '', firstName: 'Turki', lastName: 'Salem', email: 'turki.salem@asmo.com', phone: '0567123344', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '10456782233', licenseExpiry: '2026-04-15', hasInsurance: 'Yes', city: 'Dammam', poNumber: '4821211255001', poExpiry: '2026-10-10' },
     { id: 7, requestId: 6, username: '', firstName: 'Rakan', lastName: 'Harbi', email: 'rakan.harbi@asmo.com', phone: '0533221144', role: 'Privileged User', customerGroup: 'NADEC', driverClass: '', operatingHours: '', licenseNumber: '11223344556', licenseExpiry: '2027-01-20', hasInsurance: 'Yes', city: 'Riyadh', poNumber: '4821211266002', poExpiry: '2027-01-20' },
     { id: 8, requestId: 6, username: '', firstName: 'Majed', lastName: 'Shammari', email: 'majed.shammari@asmo.com', phone: '0544332211', role: 'Privileged User', customerGroup: '', driverClass: '', operatingHours: '', licenseNumber: '99887766554', licenseExpiry: '2026-12-05', hasInsurance: 'Yes', city: 'Riyadh', poNumber: '4821211266002', poExpiry: '2027-01-20' },
+    { id: 9, requestId: 7, username: '', firstName: 'Bandar', lastName: 'Zahrani', email: 'bandar.zahrani@asmo.com', phone: '0555667788', role: 'Privileged User', customerGroup: 'ARCO', driverClass: '20Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', licenseNumber: '33445566778', licenseExpiry: '2027-03-10', hasInsurance: 'Yes', city: 'Jeddah', poNumber: '4821211277003', poExpiry: '2027-03-10' },
   ];
 
   const requests = [
     {
       id: 1, requestNumber: 'REQ-2026-0001', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Completed',
       description: 'Onboard two new drivers for the ARCO contract.', businessJustification: 'Fleet expansion for Q3 deliveries.',
-      entryMethod: 'Manual', currentProcessorId: 3, driverProfilesCompletedAt: daysAgo(4),
+      entryMethod: 'Manual', currentProcessorId: 4, driverProfilesCompletedAt: daysAgo(4),
       submittedDate: daysAgo(9), completedDate: daysAgo(2), createdAt: daysAgo(9), updatedAt: daysAgo(2),
     },
     {
@@ -72,31 +76,43 @@ export function buildSeed() {
       entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null,
       submittedDate: daysAgo(4), completedDate: null, createdAt: daysAgo(4), updatedAt: daysAgo(1),
     },
+    {
+      id: 7, requestNumber: 'REQ-2026-0007', requesterId: 2, requestTypeName: 'Create Driver', statusName: 'AD Team Review',
+      description: 'Onboard a driver for the ARCO night shift.', businessJustification: 'Coverage for extended delivery hours.',
+      entryMethod: 'Manual', currentProcessorId: null, driverProfilesCompletedAt: daysAgo(1),
+      submittedDate: daysAgo(5), completedDate: null, createdAt: daysAgo(5), updatedAt: daysAgo(1),
+    },
   ];
 
   const history = [
     { id: 1, requestId: 1, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(9) },
     { id: 2, requestId: 1, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(7) },
     { id: 3, requestId: 1, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Looks good, proceeding.', createdAt: daysAgo(6) },
-    { id: 4, requestId: 1, oldStatus: null, newStatus: 'Processing', changedBy: 6, remarks: 'Driver profiles completed by Operations.', createdAt: daysAgo(4) },
-    { id: 5, requestId: 1, oldStatus: 'Processing', newStatus: 'Completed', changedBy: 3, remarks: 'Accounts created in AD and DCT.', createdAt: daysAgo(2) },
+    { id: 4, requestId: 1, oldStatus: 'Processing', newStatus: 'AD Team Review', changedBy: 6, remarks: 'Driver profiles completed by Operations. Handed over to the AD Team.', createdAt: daysAgo(4) },
+    { id: 5, requestId: 1, oldStatus: 'AD Team Review', newStatus: 'RPA Triggered', changedBy: 4, remarks: 'Approved by AD Team - Power Automate RPA flow triggered.', createdAt: daysAgo(3) },
+    { id: 6, requestId: 1, oldStatus: 'RPA Triggered', newStatus: 'Completed', changedBy: 4, remarks: 'Account creation confirmed by AD Team. Accounts created in AD and DCT.', createdAt: daysAgo(2) },
 
-    { id: 6, requestId: 2, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(3) },
-    { id: 7, requestId: 2, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1) },
+    { id: 7, requestId: 2, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(3) },
+    { id: 8, requestId: 2, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1) },
 
-    { id: 8, requestId: 3, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(1) },
+    { id: 9, requestId: 3, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(1) },
 
-    { id: 9, requestId: 4, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(6) },
-    { id: 10, requestId: 4, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(5.5) },
-    { id: 11, requestId: 4, oldStatus: 'Under Review', newStatus: 'Rejected', changedBy: 6, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
+    { id: 10, requestId: 4, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(6) },
+    { id: 11, requestId: 4, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(5.5) },
+    { id: 12, requestId: 4, oldStatus: 'Under Review', newStatus: 'Rejected', changedBy: 6, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
 
-    { id: 12, requestId: 5, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(2) },
-    { id: 13, requestId: 5, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1.5) },
-    { id: 14, requestId: 5, oldStatus: 'Under Review', newStatus: 'Returned to Requester', changedBy: 6, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
+    { id: 13, requestId: 5, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(2) },
+    { id: 14, requestId: 5, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1.5) },
+    { id: 15, requestId: 5, oldStatus: 'Under Review', newStatus: 'Returned to Requester', changedBy: 6, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
 
-    { id: 15, requestId: 6, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(4) },
-    { id: 16, requestId: 6, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(2) },
-    { id: 17, requestId: 6, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(1) },
+    { id: 16, requestId: 6, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(4) },
+    { id: 17, requestId: 6, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(2) },
+    { id: 18, requestId: 6, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(1) },
+
+    { id: 19, requestId: 7, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(5) },
+    { id: 20, requestId: 7, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(3) },
+    { id: 21, requestId: 7, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(2) },
+    { id: 22, requestId: 7, oldStatus: 'Processing', newStatus: 'AD Team Review', changedBy: 6, remarks: 'Driver profiles completed by Operations. Handed over to the AD Team.', createdAt: daysAgo(1) },
   ];
 
 
@@ -121,10 +137,11 @@ export function buildSeed() {
     { id: 2, userId: 1, requestId: 4, title: 'Request REQ-2026-0004 - Rejected', message: 'Your request status changed to "Rejected". Remarks: Route was cancelled by the customer - driver account no longer needed.', isRead: false, createdAt: daysAgo(5) },
     { id: 3, userId: 1, requestId: 2, title: 'Request REQ-2026-0002 - Under Review', message: 'Your request status changed to "Under Review".', isRead: true, createdAt: daysAgo(1) },
     { id: 4, userId: 2, requestId: 5, title: 'Request REQ-2026-0005 - Returned to Requester', message: 'Your request status changed to "Returned to Requester". Remarks: The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', isRead: false, createdAt: daysAgo(1) },
+    { id: 5, userId: 2, requestId: 7, title: 'Request REQ-2026-0007 - AD Team Review', message: 'Your request status changed to "AD Team Review".', isRead: false, createdAt: daysAgo(1) },
   ];
 
   return {
-    nextIds: { user: 7, request: 7, driver: 9, history: 18, attachment: 1, notification: 5 },
+    nextIds: { user: 7, request: 8, driver: 10, history: 23, attachment: 1, notification: 6 },
     users,
     requestTypes,
     requestStatuses,

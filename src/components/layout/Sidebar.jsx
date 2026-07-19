@@ -21,13 +21,20 @@ const operationsLinks = [
   { to: '/ops/queue', label: 'Request Queue' },
 ];
 
+// AD Team - the second review stage, owning requests once Operations has
+// completed the driver profiles.
+const adTeamLinks = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/ad/queue', label: 'Request Queue' },
+];
+
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
     isActive ? 'bg-primary-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
   }`;
 
 export default function Sidebar({ open = false, onClose = () => {} }) {
-  const { isProcessor, isOperations } = useAuth();
+  const { isProcessor, isOperations, isAdTeam } = useAuth();
   const location = useLocation();
   const onNewRequestPage = NEW_REQUEST_SUBLINKS.some((l) => location.pathname === l.to);
   const [newRequestOpen, setNewRequestOpen] = useState(onNewRequestPage);
@@ -61,6 +68,12 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         {isOperations ? (
           operationsLinks.map((link) => (
             <NavLink key={link.to} to={link.to} onClick={onClose} className={navLinkClass}>
+              {link.label}
+            </NavLink>
+          ))
+        ) : isAdTeam ? (
+          adTeamLinks.map((link) => (
+            <NavLink key={link.to} to={link.to} end={link.to === '/'} onClick={onClose} className={navLinkClass}>
               {link.label}
             </NavLink>
           ))

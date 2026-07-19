@@ -3,6 +3,8 @@ export const STATUS_COLORS = {
   'Under Review': 'bg-amber-100 text-amber-700',
   'Returned to Requester': 'bg-orange-100 text-orange-700',
   Processing: 'bg-indigo-100 text-indigo-700',
+  'AD Team Review': 'bg-purple-100 text-purple-700',
+  'RPA Triggered': 'bg-cyan-100 text-cyan-700',
   Completed: 'bg-green-100 text-green-700',
   Rejected: 'bg-red-100 text-red-700',
 };
