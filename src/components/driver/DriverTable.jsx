@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { DRIVER_FIELDS, EMPTY_DRIVER, MAX_DRIVERS } from '../../utils/constants.js';
 import { validateField } from '../../utils/validators.js';
 import OperatingHoursPicker from './OperatingHoursPicker.jsx';
+
+// Summary columns shown directly in each row while editing; every other
+// field lives in the expandable details panel underneath the row, so the
+// table never needs horizontal scrolling.
+const SUMMARY_KEYS = ['role', 'firstName', 'lastName', 'email', 'phone'];
 
 /**
  * Editable table for manually adding driver rows to a request.
@@ -18,6 +23,10 @@ export default function DriverTable({
 }) {
   const canEditFiles = filesEditable ?? !readOnly;
   const [touched, setTouched] = useState({});
+  // Indexes of rows whose details panel is open. Newly added rows start
+  // open; rows loaded from an Excel upload start collapsed (their status
+  // icon flags the ones that still need attention).
+  const [expanded, setExpanded] = useState(() => new Set());
 
   const hasChangeSummaries = readOnly && drivers.some((d) => d.changeSummary);
   const hasDriverStatus = readOnly && drivers.some((d) => d.driverStatus);
@@ -36,13 +45,27 @@ export default function DriverTable({
     return true;
   });
 
+  const summaryFields = visibleFields.filter((f) => SUMMARY_KEYS.includes(f.key));
+  const detailFields = visibleFields.filter((f) => !SUMMARY_KEYS.includes(f.key));
+
   function addRow() {
     if (drivers.length >= MAX_DRIVERS) return;
+    setExpanded((prev) => new Set(prev).add(drivers.length));
     setDrivers([...drivers, { ...EMPTY_DRIVER }]);
   }
 
   function removeRow(idx) {
+    setExpanded((prev) => new Set([...prev].filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i))));
     setDrivers(drivers.filter((_, i) => i !== idx));
+  }
+
+  function toggleRow(idx) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
   }
 
   function updateCell(idx, key, value) {
@@ -52,6 +75,7 @@ export default function DriverTable({
   }
 
   function removeAll() {
+    setExpanded(new Set());
     setDrivers([]);
   }
 
@@ -70,172 +94,270 @@ export default function DriverTable({
     return validateField(f, row[f.key], { requireCreateFields: true });
   }
 
+  // Full validation of a row regardless of touched state - drives the ✓ / !
+  // status icon in the summary row.
+  function rowErrors(row) {
+    return visibleFields
+      .map((f) => {
+        if (f.fixed) return null;
+        if (skipFileRequiredValidation && f.type === 'file') return null;
+        return validateField(f, row[f.key], { requireCreateFields: true });
+      })
+      .filter(Boolean);
+  }
+
+  function rowTouched(idx) {
+    return forceValidate || DRIVER_FIELDS.some((f) => touched[`${idx}:${f.key}`]);
+  }
+
+  function renderInput(idx, f, row) {
+    const error = cellError(idx, f, row);
+    const inputBorder = error ? 'border-red-400' : 'border-gray-300';
+
+    if (f.fixed) {
+      return <p className="text-sm text-gray-700 py-1">{row[f.key] || f.defaultValue || '-'}</p>;
+    }
+
+    if (f.key === 'operatingHours') {
+      return (
+        <div className="min-w-[240px]">
+          <OperatingHoursPicker value={row[f.key]} onChange={(v) => updateCell(idx, f.key, v)} />
+        </div>
+      );
+    }
+
+    if (f.type === 'select') {
+      return (
+        <div>
+          <select
+            required={f.required}
+            value={row[f.key] || ''}
+            onChange={(e) => updateCell(idx, f.key, e.target.value)}
+            onBlur={() => markTouched(idx, f.key)}
+            className={`w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${inputBorder}`}
+          >
+            <option value="">Select...</option>
+            {f.options.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+          {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
+        </div>
+      );
+    }
+
+    if (f.type === 'file') {
+      return (
+        <div>
+          {row[f.key] ? (
+            <div className="flex items-center justify-between gap-1 text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1.5">
+              <span className="truncate">📎 {row[f.key].name}</span>
+              {canEditFiles && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateCell(idx, f.key, '');
+                    markTouched(idx, f.key);
+                  }}
+                  className="text-red-500 hover:text-red-700 shrink-0"
+                  aria-label={`Remove ${f.label}`}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ) : canEditFiles ? (
+            <input
+              type="file"
+              accept={f.accept}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                updateCell(idx, f.key, file || '');
+                markTouched(idx, f.key);
+                e.target.value = '';
+              }}
+              className="text-xs w-full"
+            />
+          ) : (
+            <span className="text-gray-300 text-xs">-</span>
+          )}
+          {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <input
+          type={f.type || 'text'}
+          required={f.required}
+          value={row[f.key] || ''}
+          placeholder={f.placeholder || ''}
+          list={f.suggestions ? `${f.key}-suggestions-${idx}` : undefined}
+          onChange={(e) => updateCell(idx, f.key, e.target.value)}
+          onBlur={() => markTouched(idx, f.key)}
+          className={`w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${inputBorder}`}
+        />
+        {f.suggestions && (
+          <datalist id={`${f.key}-suggestions-${idx}`}>
+            {f.suggestions.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+        )}
+        {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
+      </div>
+    );
+  }
+
+  // Read-only mode (request details / staff review pages) keeps the classic
+  // one-row-per-driver table - no inputs, so horizontal scrolling is fine.
+  if (readOnly) {
+    return (
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-gray-600">
+              <tr>
+                {visibleFields.map((f) => (
+                  <th key={f.key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
+                    {f.label}
+                    {f.required && <span className="text-red-500">*</span>}
+                  </th>
+                ))}
+                {hasDriverStatus && <th className="px-3 py-2 text-left font-medium whitespace-nowrap">Request Status</th>}
+                {hasChangeSummaries && <th className="px-3 py-2 text-left font-medium whitespace-nowrap">Changes</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {drivers.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={visibleFields.length + (hasDriverStatus ? 1 : 0) + (hasChangeSummaries ? 1 : 0)}
+                    className="text-center text-gray-400 py-8"
+                  >
+                    No data to display
+                  </td>
+                </tr>
+              )}
+              {drivers.map((row, idx) => (
+                <tr key={idx} className="border-t border-gray-100 align-top">
+                  {visibleFields.map((f) => (
+                    <td key={f.key} className="px-3 py-2">
+                      <span className="whitespace-nowrap">
+                        {f.type === 'file' ? row[f.key]?.name || '-' : row[f.key] || f.defaultValue || '-'}
+                      </span>
+                    </td>
+                  ))}
+                  {hasDriverStatus && (
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">
+                        {row.driverStatus || '-'}
+                      </span>
+                    </td>
+                  )}
+                  {hasChangeSummaries && (
+                    <td className="px-3 py-2 text-xs text-gray-600 max-w-xs">
+                      {row.changeSummary || <span className="text-gray-300">No changes</span>}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Editable mode: compact summary rows (name / email / phone + validation
+  // status) with an expandable details panel holding the remaining fields.
+  const totalCols = 1 + summaryFields.length + 3; // # + summary + status + details + remove
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {!readOnly && (
-        <div className="flex justify-end gap-2 bg-gray-50 px-4 py-2 border-b border-gray-200">
-          <button
-            type="button"
-            onClick={removeAll}
-            disabled={!drivers.length}
-            className="text-sm px-3 py-1.5 rounded-md border border-gray-300 text-gray-600 disabled:opacity-40 hover:bg-gray-100"
-          >
-            Remove All
-          </button>
-          <button
-            type="button"
-            onClick={addRow}
-            disabled={drivers.length >= MAX_DRIVERS}
-            className="text-sm px-3 py-1.5 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40"
-          >
-            + Add Driver
-          </button>
-        </div>
-      )}
-      {!readOnly && (
-        <p className="text-xs text-gray-500 px-4 pt-3">
-          Username will be assigned automatically by AD in the format{' '}
-          <span className="font-medium">firstname.lastname@asmo.com</span>.
-        </p>
-      )}
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+      <div className="flex justify-end gap-2 bg-gray-50 px-4 py-2 border-b border-gray-200">
+        <button
+          type="button"
+          onClick={removeAll}
+          disabled={!drivers.length}
+          className="text-sm px-3 py-1.5 rounded-md border border-gray-300 text-gray-600 disabled:opacity-40 hover:bg-gray-100"
+        >
+          Remove All
+        </button>
+        <button
+          type="button"
+          onClick={addRow}
+          disabled={drivers.length >= MAX_DRIVERS}
+          className="text-sm px-3 py-1.5 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40"
+        >
+          + Add Driver
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 px-4 pt-3">
+        Username will be assigned automatically by AD in the format{' '}
+        <span className="font-medium">firstname.lastname@asmo.com</span>.
+      </p>
+      <table className="w-full text-sm table-fixed">
+        <thead className="bg-gray-50 text-gray-600">
+          <tr>
+            <th className="px-3 py-2 text-left w-10">#</th>
+            {summaryFields.map((f) => (
+              <th key={f.key} className={`px-3 py-2 text-left font-medium ${f.fixed ? 'w-32' : ''}`}>
+                {f.label}
+                {f.required && <span className="text-red-500">*</span>}
+              </th>
+            ))}
+            <th className="px-3 py-2 text-left font-medium w-20">Status</th>
+            <th className="px-3 py-2 w-28" />
+            <th className="px-3 py-2 w-10" />
+          </tr>
+        </thead>
+        <tbody>
+          {drivers.length === 0 && (
             <tr>
-              {!readOnly && <th className="px-3 py-2 text-left w-10">#</th>}
-              {visibleFields.map((f) => (
-                <th key={f.key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
-                  {f.label}
-                  {f.required && <span className="text-red-500">*</span>}
-                </th>
-              ))}
-              {hasDriverStatus && <th className="px-3 py-2 text-left font-medium whitespace-nowrap">Request Status</th>}
-              {hasChangeSummaries && <th className="px-3 py-2 text-left font-medium whitespace-nowrap">Changes</th>}
-              {!readOnly && <th className="px-3 py-2 w-10" />}
+              <td colSpan={totalCols} className="text-center text-gray-400 py-8">
+                No data to display
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {drivers.length === 0 && (
-              <tr>
-                <td
-                  colSpan={visibleFields.length + 2 + (hasDriverStatus ? 1 : 0) + (hasChangeSummaries ? 1 : 0)}
-                  className="text-center text-gray-400 py-8"
-                >
-                  No data to display
-                </td>
-              </tr>
-            )}
-            {drivers.map((row, idx) => (
-              <tr key={idx} className="border-t border-gray-100 align-top">
-                {!readOnly && <td className="px-3 py-2 text-gray-400">{idx + 1}</td>}
-                {visibleFields.map((f) => {
-                  const error = cellError(idx, f, row);
-                  const inputBorder = error ? 'border-red-400' : 'border-gray-200';
+          )}
+          {drivers.map((row, idx) => {
+            const errors = rowErrors(row);
+            const showStatus = rowTouched(idx);
+            const isOpen = expanded.has(idx);
 
-                  return (
+            return (
+              <Fragment key={idx}>
+                <tr className="border-t border-gray-100 align-top">
+                  <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
+                  {summaryFields.map((f) => (
                     <td key={f.key} className="px-2 py-1.5">
-                      {readOnly || f.fixed ? (
-                        <span className="whitespace-nowrap">
-                          {f.type === 'file'
-                            ? row[f.key]?.name || '-'
-                            : row[f.key] || f.defaultValue || '-'}
-                        </span>
-                      ) : f.key === 'operatingHours' ? (
-                        <div className="min-w-[240px]">
-                          <OperatingHoursPicker value={row[f.key]} onChange={(v) => updateCell(idx, f.key, v)} />
-                        </div>
-                      ) : f.type === 'select' ? (
-                        <div>
-                          <select
-                            required={f.required}
-                            value={row[f.key] || ''}
-                            onChange={(e) => updateCell(idx, f.key, e.target.value)}
-                            onBlur={() => markTouched(idx, f.key)}
-                            className={`w-32 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${inputBorder}`}
-                          >
-                            <option value="">Select...</option>
-                            {f.options.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                          {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
-                        </div>
-                      ) : f.type === 'file' ? (
-                        <div className="min-w-[140px]">
-                          {row[f.key] ? (
-                            <div className="flex items-center justify-between gap-1 text-xs bg-gray-50 rounded px-2 py-1">
-                              <span className="truncate">📎 {row[f.key].name}</span>
-                              {canEditFiles && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    updateCell(idx, f.key, '');
-                                    markTouched(idx, f.key);
-                                  }}
-                                  className="text-red-500 hover:text-red-700 shrink-0"
-                                  aria-label={`Remove ${f.label}`}
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ) : canEditFiles ? (
-                            <input
-                              type="file"
-                              accept={f.accept}
-                              onChange={(e) => {
-                                const file = e.target.files[0];
-                                updateCell(idx, f.key, file || '');
-                                markTouched(idx, f.key);
-                                e.target.value = '';
-                              }}
-                              className="text-xs w-32"
-                            />
-                          ) : (
-                            <span className="text-gray-300 text-xs">-</span>
-                          )}
-                          {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
-                        </div>
-                      ) : (
-                        <div>
-                          <input
-                            type={f.type || 'text'}
-                            required={f.required}
-                            value={row[f.key] || ''}
-                            placeholder={f.placeholder || ''}
-                            list={f.suggestions ? `${f.key}-suggestions-${idx}` : undefined}
-                            onChange={(e) => updateCell(idx, f.key, e.target.value)}
-                            onBlur={() => markTouched(idx, f.key)}
-                            className={`w-36 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${inputBorder}`}
-                          />
-                          {f.suggestions && (
-                            <datalist id={`${f.key}-suggestions-${idx}`}>
-                              {f.suggestions.map((s) => (
-                                <option key={s} value={s} />
-                              ))}
-                            </datalist>
-                          )}
-                          {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
-                        </div>
-                      )}
+                      {renderInput(idx, f, row)}
                     </td>
-                  );
-                })}
-                {hasDriverStatus && (
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-700">
-                      {row.driverStatus || '-'}
-                    </span>
+                  ))}
+                  <td className="px-3 py-2.5">
+                    {errors.length === 0 ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">✓ Complete</span>
+                    ) : showStatus ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
+                        ! {errors.length} missing
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
                   </td>
-                )}
-                {hasChangeSummaries && (
-                  <td className="px-3 py-2 text-xs text-gray-600 max-w-xs">
-                    {row.changeSummary || <span className="text-gray-300">No changes</span>}
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleRow(idx)}
+                      className="text-sm text-primary-600 hover:text-primary-700 whitespace-nowrap"
+                      aria-expanded={isOpen}
+                    >
+                      {isOpen ? '▾ Hide details' : '▸ Details'}
+                    </button>
                   </td>
-                )}
-                {!readOnly && (
                   <td className="px-3 py-2">
                     <button
                       type="button"
@@ -246,12 +368,29 @@ export default function DriverTable({
                       ✕
                     </button>
                   </td>
+                </tr>
+                {isOpen && (
+                  <tr className="border-t border-gray-100">
+                    <td colSpan={totalCols} className="bg-gray-50/70 px-6 py-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-4">
+                        {detailFields.map((f) => (
+                          <div key={f.key}>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {f.label}
+                              {f.required && !f.fixed && <span className="text-red-500">*</span>}
+                            </label>
+                            {renderInput(idx, f, row)}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
                 )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
