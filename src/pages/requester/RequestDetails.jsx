@@ -29,7 +29,7 @@ export default function RequestDetails() {
     : null;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <Link to="/requests" className="text-sm text-primary-600 hover:underline">← Back to My Requests</Link>
 
       {isReturned && (

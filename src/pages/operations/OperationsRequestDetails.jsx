@@ -93,7 +93,7 @@ export default function OperationsRequestDetails() {
   const modalAction = commentAction ? COMMENT_ACTIONS[commentAction] : null;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <Link to="/ops/queue" className="text-sm text-primary-600 hover:underline">← Back to Request Queue</Link>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">

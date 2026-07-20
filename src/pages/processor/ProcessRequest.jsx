@@ -26,7 +26,7 @@ export default function ProcessRequest() {
   if (!request) return <p className="text-gray-500">Request not found.</p>;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <Link to="/queue" className="text-sm text-primary-600 hover:underline">← Back to Queue</Link>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">

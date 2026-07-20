@@ -94,7 +94,7 @@ export default function AdTeamRequestDetails() {
   if (loading) return <Spinner full />;
   if (!request) {
     return (
-      <div className="max-w-5xl space-y-4">
+      <div className="w-full space-y-4">
         <Link to="/ad/queue" className="text-sm text-primary-600 hover:underline">← Back to Request Queue</Link>
         <Alert type="error">{error || 'Request not found.'}</Alert>
       </div>
@@ -108,7 +108,7 @@ export default function AdTeamRequestDetails() {
       : null;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <Link to="/ad/queue" className="text-sm text-primary-600 hover:underline">← Back to Request Queue</Link>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">

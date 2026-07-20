@@ -230,7 +230,7 @@ export default function NewRequest({ requestType }) {
   if (loadingExisting) return <Spinner full />;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-800">
           {isEditMode ? 'Edit & Resubmit Request' : PAGE_COPY[requestTypeName]?.title || 'New Request'}
