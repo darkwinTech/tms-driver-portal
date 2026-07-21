@@ -12,7 +12,10 @@ import { formatDate } from '../../utils/statusColors.js';
 
 /**
  * AD Team request details - the second stage of the workflow. Requests
- * arrive here once Operations has completed the driver profiles.
+ * arrive here once Operations has completed the driver profiles (Create
+ * Driver) or has accepted the disable request (Disable Driver). Modify
+ * Driver requests never reach the AD Team - Operations completes those
+ * directly.
  *
  *   AD Team Review -> "Approve & Send Tp System" moves the request to
  *                     RPA Triggered (the Power Automate flow - not this app -
@@ -58,7 +61,10 @@ export default function AdTeamRequestDetails() {
     setBusy(true);
     setError('');
     try {
-      const res = await updateStatus(id, 'Completed', 'Account creation confirmed by AD Team.');
+      const remarks = request?.requestType?.name === 'Disable Driver'
+        ? 'Driver account disabled by AD Team.'
+        : 'Account creation confirmed by AD Team.';
+      const res = await updateStatus(id, 'Completed', remarks);
       setRequest(res.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to complete the request');
@@ -102,6 +108,8 @@ export default function AdTeamRequestDetails() {
   }
 
   const statusName = request.status?.name;
+  const requestTypeName = request.requestType?.name;
+  const isDisable = requestTypeName === 'Disable Driver';
   const rejectedRemark =
     statusName === 'Rejected'
       ? [...(request.history || [])].reverse().find((h) => h.newStatus === 'Rejected')?.remarks
@@ -156,7 +164,12 @@ export default function AdTeamRequestDetails() {
 
       <section className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-medium text-gray-800 mb-4">Driver Information ({request.drivers?.length || 0})</h3>
-        <DriverTable drivers={request.drivers || []} setDrivers={() => {}} readOnly showOperationsFields />
+        <DriverTable
+          drivers={request.drivers || []}
+          setDrivers={() => {}}
+          readOnly
+          showOperationsFields={requestTypeName === 'Create Driver'}
+        />
       </section>
 
       {/* AD Team actions */}
@@ -167,7 +180,9 @@ export default function AdTeamRequestDetails() {
         {statusName === 'AD Team Review' && (
           <>
             <p className="text-sm text-gray-500 mb-3">
-              Operations has completed the driver profiles. Approving triggers and sends the email to ServiceNow
+              {isDisable
+                ? 'Operations has approved this disable request. Approving triggers and sends the email to ServiceNow to disable the account.'
+                : 'Operations has completed the driver profiles. Approving triggers and sends the email to ServiceNow'}
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -193,9 +208,9 @@ export default function AdTeamRequestDetails() {
         {statusName === 'RPA Triggered' && (
           <>
             <p className="text-sm text-gray-500 mb-3">
-              The email is triggered and sent to ServiceNow, 
-              once you have confirmed the accounts were created successfully, mark the request as
-              completed to close it.
+              {isDisable
+                ? 'The email is triggered and sent to ServiceNow, once you have confirmed the account was disabled successfully, mark the request as completed to close it.'
+                : 'The email is triggered and sent to ServiceNow, once you have confirmed the accounts were created successfully, mark the request as completed to close it.'}
             </p>
             <button
               type="button"

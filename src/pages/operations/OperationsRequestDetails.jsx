@@ -13,16 +13,26 @@ import { formatDate } from '../../utils/statusColors.js';
 
 /**
  * Operations request details - the first stage of the review workflow.
+ * The available actions depend on the request type:
  *
- *   Submitted     -> "Start Review" moves the request to Under Review.
- *   Under Review  -> Approve (-> Processing), Return to Requester or Reject
- *                    (both negative outcomes require a comment, entered in a
- *                    confirmation modal).
- *   Processing    -> Operations completes the requester-hidden driver
- *                    profile fields via DriverProfilePanel. The workflow
- *                    intentionally stops after "Complete Driver Profiles" -
- *                    routing to the AD Team / secondary processors is a
- *                    future sprint.
+ *   Create Driver:
+ *     Submitted     -> "Start Review" moves the request to Under Review.
+ *     Under Review  -> Approve (-> Processing), Return to Requester or
+ *                       Reject (both negative outcomes require a comment,
+ *                       entered in a confirmation modal).
+ *     Processing    -> Operations completes the requester-hidden driver
+ *                       profile fields via DriverProfilePanel, then hands
+ *                       off to the AD Team.
+ *
+ *   Modify Driver: no account action to perform, so Operations decides
+ *     directly from Submitted - Accept completes the request immediately
+ *     (writing the change onto the driver's real record), Reject is
+ *     terminal. The AD Team is never involved.
+ *
+ *   Disable Driver: Operations also decides directly from Submitted, but
+ *     Accept hands the request to the AD Team instead of completing it -
+ *     disabling the account is their job (same pattern as Create Driver's
+ *     AD handoff).
  */
 const COMMENT_ACTIONS = {
   return: {
@@ -90,6 +100,7 @@ export default function OperationsRequestDetails() {
   if (!request) return <p className="text-gray-500">Request not found.</p>;
 
   const statusName = request.status?.name;
+  const requestTypeName = request.requestType?.name;
   const modalAction = commentAction ? COMMENT_ACTIONS[commentAction] : null;
 
   return (
@@ -141,7 +152,12 @@ export default function OperationsRequestDetails() {
 
       <section className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-medium text-gray-800 mb-4">Driver Information ({request.drivers?.length || 0})</h3>
-        <DriverTable drivers={request.drivers || []} setDrivers={() => {}} readOnly showOperationsFields />
+        <DriverTable
+          drivers={request.drivers || []}
+          setDrivers={() => {}}
+          readOnly
+          showOperationsFields={requestTypeName === 'Create Driver'}
+        />
       </section>
 
       {/* Review actions */}
@@ -149,7 +165,61 @@ export default function OperationsRequestDetails() {
         <h3 className="font-medium text-gray-800 mb-3">Review</h3>
         <Alert type="error">{error}</Alert>
 
-        {statusName === 'Submitted' && (
+        {statusName === 'Submitted' && requestTypeName === 'Modify Driver' && (
+          <>
+            <p className="text-sm text-gray-500 mb-3">
+              Review the requested change in the "Changes" column above, then accept it to apply the
+              update to the driver's record, or reject it with a comment.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => runTransition('Completed', 'Accepted by Operations - driver record updated.')}
+                className="px-5 py-2.5 rounded-md text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                Accept & Apply Changes
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => openCommentModal('reject')}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+          </>
+        )}
+
+        {statusName === 'Submitted' && requestTypeName === 'Disable Driver' && (
+          <>
+            <p className="text-sm text-gray-500 mb-3">
+              Accept to forward this request to the AD Team, who will disable the account, or reject it
+              with a comment.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => runTransition('AD Team Review', 'Approved by Operations - forwarded to AD Team for account disablement.')}
+                className="px-5 py-2.5 rounded-md text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                Accept & Forward to AD Team
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => openCommentModal('reject')}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+          </>
+        )}
+
+        {statusName === 'Submitted' && requestTypeName === 'Create Driver' && (
           <>
             <p className="text-sm text-gray-500 mb-3">
               This request is waiting for Operations. Start the review to take ownership of it.
@@ -165,7 +235,7 @@ export default function OperationsRequestDetails() {
           </>
         )}
 
-        {statusName === 'Under Review' && (
+        {statusName === 'Under Review' && requestTypeName === 'Create Driver' && (
           <>
             <p className="text-sm text-gray-500 mb-3">
               Approve to move the request into Processing and complete the driver profiles, or send it back with a comment.
@@ -205,10 +275,24 @@ export default function OperationsRequestDetails() {
           </p>
         )}
 
-        {statusName === 'Returned to Requester' && (
+        {statusName === 'AD Team Review' && requestTypeName === 'Disable Driver' && (
+          <p className="text-sm text-gray-500">
+            Forwarded to the AD Team to disable the account. No further Operations action is required.
+          </p>
+        )}
+
+        {statusName === 'Returned to Requester' && requestTypeName === 'Create Driver' && (
           <p className="text-sm text-gray-500">
             Waiting for the requester to correct and resubmit. It will reappear in the queue as Submitted.
           </p>
+        )}
+
+        {['Under Review', 'Processing', 'Returned to Requester'].includes(statusName) && requestTypeName !== 'Create Driver' && (
+          <Alert type="warning">
+            This {requestTypeName} request is sitting in an unexpected status ("{statusName}") left over from
+            before this workflow existed - {requestTypeName} requests no longer pass through that stage.
+            Contact an administrator to resolve it manually.
+          </Alert>
         )}
 
         {statusName === 'Rejected' && (

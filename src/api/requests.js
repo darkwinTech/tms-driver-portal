@@ -367,6 +367,18 @@ function isStaffRole(roleName) {
   return roleName === 'Processor' || roleName === 'Operations' || roleName === 'AD Team' || roleName === 'Admin';
 }
 
+// Finds a driver's real record - the row from the Create Driver request
+// that produced their account - by username, so Modify/Disable requests
+// (which carry their own separate driver rows scoped to the new request)
+// can write their outcome back onto the record that actually matters.
+function findOriginalDriver(db, username) {
+  if (!username) return null;
+  return db.drivers.find(
+    (d) => d.username === username &&
+      db.requests.find((r) => r.id === d.requestId)?.requestTypeName === 'Create Driver'
+  );
+}
+
 // Statuses that mean the request currently sits with the AD Team.
 const AD_STAGE_STATUSES = ['AD Team Review', 'RPA Triggered'];
 
@@ -600,7 +612,7 @@ export async function updateStatus(id, targetStatus, remarks) {
   if (!row) throw apiError('Request not found', 404);
 
   const currentStatusName = row.statusName;
-  if (!isTransitionAllowed(currentStatusName, targetStatus, user.role)) {
+  if (!isTransitionAllowed(row.requestTypeName, currentStatusName, targetStatus, user.role)) {
     throw apiError(`Cannot move request from "${currentStatusName}" to "${targetStatus}" as ${user.role}`);
   }
 
@@ -624,6 +636,33 @@ export async function updateStatus(id, targetStatus, remarks) {
       .filter((d) => d.requestId === row.id && !d.username)
       .forEach((d) => {
         d.username = `${d.firstName}.${d.lastName}@asmo.com`.toLowerCase();
+      });
+  }
+
+  // Operations accepting a Modify Driver request completes it immediately -
+  // write the requested PO Number/PO Expiry change onto the driver's actual
+  // record so it's reflected everywhere (future searches, other requests).
+  if (targetStatus === 'Completed' && row.requestTypeName === 'Modify Driver') {
+    db.drivers
+      .filter((d) => d.requestId === row.id)
+      .forEach((d) => {
+        const original = findOriginalDriver(db, d.username);
+        if (original) {
+          original.poNumber = d.poNumber;
+          original.poExpiry = d.poExpiry;
+        }
+      });
+  }
+
+  // The AD Team confirming a Disable Driver request is what actually
+  // disables the account - flag the driver's real record so they drop out
+  // of future "my completed drivers" searches.
+  if (targetStatus === 'Completed' && row.requestTypeName === 'Disable Driver') {
+    db.drivers
+      .filter((d) => d.requestId === row.id)
+      .forEach((d) => {
+        const original = findOriginalDriver(db, d.username);
+        if (original) original.driverStatus = 'Disabled';
       });
   }
 

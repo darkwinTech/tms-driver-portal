@@ -23,7 +23,7 @@ function myCompletedDrivers(db, user) {
     .map((r) => r.id);
 
   return db.drivers
-    .filter((d) => myCompletedRequestIds.includes(d.requestId) && d.username)
+    .filter((d) => myCompletedRequestIds.includes(d.requestId) && d.username && d.driverStatus !== 'Disabled')
     .map((d) => ({ ...d, status: 'Active' }));
 }
 

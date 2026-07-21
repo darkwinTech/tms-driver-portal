@@ -47,10 +47,10 @@ export function buildSeed() {
       submittedDate: daysAgo(9), completedDate: daysAgo(2), createdAt: daysAgo(9), updatedAt: daysAgo(2),
     },
     {
-      id: 2, requestNumber: 'REQ-2026-0002', requesterId: 1, requestTypeName: 'Modify Driver', statusName: 'Under Review',
-      description: 'Update driver class and operating hours for Ahmad Kabbani.', businessJustification: 'Driver reassigned to a heavier vehicle class.',
-      entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null,
-      submittedDate: daysAgo(3), completedDate: null, createdAt: daysAgo(3), updatedAt: daysAgo(1),
+      id: 2, requestNumber: 'REQ-2026-0002', requesterId: 1, requestTypeName: 'Modify Driver', statusName: 'Submitted',
+      description: 'Update PO Number and PO Expiry Date for Ahmad Kabbani.', businessJustification: 'Contract renewed under a new purchase order.',
+      entryMethod: 'Manual', currentProcessorId: null, driverProfilesCompletedAt: null,
+      submittedDate: daysAgo(3), completedDate: null, createdAt: daysAgo(3), updatedAt: daysAgo(3),
     },
     {
       id: 3, requestNumber: 'REQ-2026-0003', requesterId: 2, requestTypeName: 'Disable Driver', statusName: 'Submitted',
@@ -93,7 +93,6 @@ export function buildSeed() {
     { id: 6, requestId: 1, oldStatus: 'RPA Triggered', newStatus: 'Completed', changedBy: 4, remarks: 'Account creation confirmed by AD Team. Accounts created in AD and DCT.', createdAt: daysAgo(2) },
 
     { id: 7, requestId: 2, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(3) },
-    { id: 8, requestId: 2, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1) },
 
     { id: 9, requestId: 3, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(1) },
 
@@ -135,7 +134,6 @@ export function buildSeed() {
   const notifications = [
     { id: 1, userId: 1, requestId: 1, title: 'Request REQ-2026-0001 - Completed', message: 'Your request status changed to "Completed".', isRead: false, createdAt: daysAgo(2) },
     { id: 2, userId: 1, requestId: 4, title: 'Request REQ-2026-0004 - Rejected', message: 'Your request status changed to "Rejected". Remarks: Route was cancelled by the customer - driver account no longer needed.', isRead: false, createdAt: daysAgo(5) },
-    { id: 3, userId: 1, requestId: 2, title: 'Request REQ-2026-0002 - Under Review', message: 'Your request status changed to "Under Review".', isRead: true, createdAt: daysAgo(1) },
     { id: 4, userId: 2, requestId: 5, title: 'Request REQ-2026-0005 - Returned to Requester', message: 'Your request status changed to "Returned to Requester". Remarks: The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', isRead: false, createdAt: daysAgo(1) },
     { id: 5, userId: 2, requestId: 7, title: 'Request REQ-2026-0007 - AD Team Review', message: 'Your request status changed to "AD Team Review".', isRead: false, createdAt: daysAgo(1) },
   ];
