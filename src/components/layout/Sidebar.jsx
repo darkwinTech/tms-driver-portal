@@ -15,9 +15,9 @@ const processorLinks = [
   { to: '/reports', label: 'Reports'},
 ];
 
-// Operations gets its own navigation - they are the first review stage and
-// work exclusively out of their request queue.
+// Operations gets its own navigation - they are the first review stage.
 const operationsLinks = [
+  { to: '/', label: 'Dashboard' },
   { to: '/ops/queue', label: 'Request Queue' },
 ];
 
@@ -67,7 +67,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {isOperations ? (
           operationsLinks.map((link) => (
-            <NavLink key={link.to} to={link.to} onClick={onClose} className={navLinkClass}>
+            <NavLink key={link.to} to={link.to} end={link.to === '/'} onClick={onClose} className={navLinkClass}>
               {link.label}
             </NavLink>
           ))
