@@ -7,13 +7,19 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex">
+    /* 1. Change min-h-screen to h-screen and add overflow-hidden to lock the page height */
+    <div className="h-screen flex overflow-hidden bg-gray-50">
+      
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">
+        
+        {/* 2. Add overflow-y-auto here so ONLY the main content scrolls */}
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
+        
       </div>
     </div>
   );
