@@ -4,7 +4,7 @@ import { validateField } from '../../utils/validators.js';
 import OperatingHoursPicker from './OperatingHoursPicker.jsx';
 
 // Summary columns shown directly in each row while editing; every other
-// field lives in the expandable details panel underneath the row, so the
+// field is always shown in the details panel underneath the row, so the
 // table never needs horizontal scrolling.
 const SUMMARY_KEYS = ['role', 'firstName', 'lastName', 'email', 'phone'];
 
@@ -23,10 +23,10 @@ export default function DriverTable({
 }) {
   const canEditFiles = filesEditable ?? !readOnly;
   const [touched, setTouched] = useState({});
-  // Indexes of rows whose details panel is open. Newly added rows start
-  // open; rows loaded from an Excel upload start collapsed (their status
-  // icon flags the ones that still need attention).
-  const [expanded, setExpanded] = useState(() => new Set());
+  // Files rejected outright at selection time (wrong extension) - kept
+  // separate from `touched`/validateField so the row's data never even
+  // holds the invalid file; the rejection reason still surfaces inline.
+  const [fileRejections, setFileRejections] = useState({});
 
   const hasChangeSummaries = readOnly && drivers.some((d) => d.changeSummary);
   const hasDriverStatus = readOnly && drivers.some((d) => d.driverStatus);
@@ -50,22 +50,11 @@ export default function DriverTable({
 
   function addRow() {
     if (drivers.length >= MAX_DRIVERS) return;
-    setExpanded((prev) => new Set(prev).add(drivers.length));
     setDrivers([...drivers, { ...EMPTY_DRIVER }]);
   }
 
   function removeRow(idx) {
-    setExpanded((prev) => new Set([...prev].filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i))));
     setDrivers(drivers.filter((_, i) => i !== idx));
-  }
-
-  function toggleRow(idx) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
   }
 
   function updateCell(idx, key, value) {
@@ -75,7 +64,6 @@ export default function DriverTable({
   }
 
   function removeAll() {
-    setExpanded(new Set());
     setDrivers([]);
   }
 
@@ -94,20 +82,34 @@ export default function DriverTable({
     return validateField(f, row[f.key], { requireCreateFields: true });
   }
 
-  // Full validation of a row regardless of touched state - drives the ✓ / !
-  // status icon in the summary row.
-  function rowErrors(row) {
-    return visibleFields
-      .map((f) => {
-        if (f.fixed) return null;
-        if (skipFileRequiredValidation && f.type === 'file') return null;
-        return validateField(f, row[f.key], { requireCreateFields: true });
-      })
-      .filter(Boolean);
-  }
+  // The browser's `accept` attribute is only a filter hint - the OS file
+  // picker still lets people choose "All Files", so wrong-type uploads
+  // (e.g. an Excel sheet where a license/ID/photo is expected) are rejected
+  // here outright rather than being stored and merely flagged as invalid.
+  function handleFileSelect(idx, f, file) {
+    const key = `${idx}:${f.key}`;
+    markTouched(idx, f.key);
 
-  function rowTouched(idx) {
-    return forceValidate || DRIVER_FIELDS.some((f) => touched[`${idx}:${f.key}`]);
+    if (file && f.allowedExtensions?.length) {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (!f.allowedExtensions.includes(extension)) {
+        const message = `${f.label} must be one of the following file types: ${f.allowedExtensions.join(', ')}`;
+        setFileRejections((prev) => ({ ...prev, [key]: message }));
+        // The OS file picker's "All Files" option can bypass the `accept`
+        // filter, so a rejected file is common enough to need a message
+        // impossible to miss - not just a small inline note under the row.
+        window.alert(`"${file.name}" was not attached.\n\n${message}`);
+        return;
+      }
+    }
+
+    setFileRejections((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    updateCell(idx, f.key, file || '');
   }
 
   function renderInput(idx, f, row) {
@@ -149,6 +151,7 @@ export default function DriverTable({
     }
 
     if (f.type === 'file') {
+      const rejection = fileRejections[`${idx}:${f.key}`];
       return (
         <div>
           {row[f.key] ? (
@@ -157,10 +160,7 @@ export default function DriverTable({
               {canEditFiles && (
                 <button
                   type="button"
-                  onClick={() => {
-                    updateCell(idx, f.key, '');
-                    markTouched(idx, f.key);
-                  }}
+                  onClick={() => handleFileSelect(idx, f, null)}
                   className="text-red-500 hover:text-red-700 shrink-0"
                   aria-label={`Remove ${f.label}`}
                 >
@@ -173,9 +173,7 @@ export default function DriverTable({
               type="file"
               accept={f.accept}
               onChange={(e) => {
-                const file = e.target.files[0];
-                updateCell(idx, f.key, file || '');
-                markTouched(idx, f.key);
+                handleFileSelect(idx, f, e.target.files[0] || null);
                 e.target.value = '';
               }}
               className="text-xs w-full"
@@ -183,7 +181,7 @@ export default function DriverTable({
           ) : (
             <span className="text-gray-300 text-xs">-</span>
           )}
-          {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
+          {(rejection || error) && <p className="text-[11px] text-red-500 mt-0.5">{rejection || error}</p>}
         </div>
       );
     }
@@ -195,6 +193,8 @@ export default function DriverTable({
           required={f.required}
           value={row[f.key] || ''}
           placeholder={f.placeholder || ''}
+          maxLength={f.maxLength}
+          inputMode={f.inputMode}
           list={f.suggestions ? `${f.key}-suggestions-${idx}` : undefined}
           onChange={(e) => updateCell(idx, f.key, e.target.value)}
           onBlur={() => markTouched(idx, f.key)}
@@ -272,9 +272,9 @@ export default function DriverTable({
     );
   }
 
-  // Editable mode: compact summary rows (name / email / phone + validation
-  // status) with an expandable details panel holding the remaining fields.
-  const totalCols = 1 + summaryFields.length + 3; // # + summary + status + details + remove
+  // Editable mode: compact summary row (name / email / phone) with the full
+  // set of remaining fields always shown directly beneath it.
+  const totalCols = 1 + summaryFields.length + 1; // # + summary + remove
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -310,8 +310,6 @@ export default function DriverTable({
                 {f.required && <span className="text-red-500">*</span>}
               </th>
             ))}
-            <th className="px-3 py-2 text-left font-medium w-20">Status</th>
-            <th className="px-3 py-2 w-28" />
             <th className="px-3 py-2 w-10" />
           </tr>
         </thead>
@@ -323,72 +321,43 @@ export default function DriverTable({
               </td>
             </tr>
           )}
-          {drivers.map((row, idx) => {
-            const errors = rowErrors(row);
-            const showStatus = rowTouched(idx);
-            const isOpen = expanded.has(idx);
-
-            return (
-              <Fragment key={idx}>
-                <tr className="border-t border-gray-100 align-top">
-                  <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
-                  {summaryFields.map((f) => (
-                    <td key={f.key} className="px-2 py-1.5">
-                      {renderInput(idx, f, row)}
-                    </td>
-                  ))}
-                  <td className="px-3 py-2.5">
-                    {errors.length === 0 ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">✓ Complete</span>
-                    ) : showStatus ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium">
-                        ! {errors.length} missing
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-300">—</span>
-                    )}
+          {drivers.map((row, idx) => (
+            <Fragment key={idx}>
+              <tr className="border-t border-gray-100 align-top">
+                <td className="px-3 py-2.5 text-gray-400">{idx + 1}</td>
+                {summaryFields.map((f) => (
+                  <td key={f.key} className="px-2 py-1.5">
+                    {renderInput(idx, f, row)}
                   </td>
-                  <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleRow(idx)}
-                      className="text-sm text-primary-600 hover:text-primary-700 whitespace-nowrap"
-                      aria-expanded={isOpen}
-                    >
-                      {isOpen ? '▾ Hide details' : '▸ Details'}
-                    </button>
-                  </td>
-                  <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={() => removeRow(idx)}
-                      className="text-red-500 hover:text-red-700"
-                      aria-label="Remove row"
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-                {isOpen && (
-                  <tr className="border-t border-gray-100">
-                    <td colSpan={totalCols} className="bg-gray-50/70 px-6 py-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-4">
-                        {detailFields.map((f) => (
-                          <div key={f.key}>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              {f.label}
-                              {f.required && !f.fixed && <span className="text-red-500">*</span>}
-                            </label>
-                            {renderInput(idx, f, row)}
-                          </div>
-                        ))}
+                ))}
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => removeRow(idx)}
+                    className="text-red-500 hover:text-red-700"
+                    aria-label="Remove row"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+              <tr className="border-t border-gray-100">
+                <td colSpan={totalCols} className="bg-gray-50/70 px-6 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-4">
+                    {detailFields.map((f) => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          {f.label}
+                          {f.required && !f.fixed && <span className="text-red-500">*</span>}
+                        </label>
+                        {renderInput(idx, f, row)}
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            );
-          })}
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            </Fragment>
+          ))}
         </tbody>
       </table>
     </div>

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createRequest, getRequest, resubmitRequest, uploadAttachment } from '../../api/requests.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { REQUEST_TYPES, DRIVER_FIELDS } from '../../utils/constants.js';
+import { validateField } from '../../utils/validators.js';
 import DriverTable from '../../components/driver/DriverTable.jsx';
 import ExcelUploadPanel from '../../components/driver/ExcelUploadPanel.jsx';
 import DriverSearchPanel from '../../components/driver/DriverSearchPanel.jsx';
@@ -110,40 +111,34 @@ export default function NewRequest({ requestType }) {
     return selectedDrivers.map(({ original }) => ({ ...original, driverStatus: 'Disable Requested' }));
   }
   function validateDrivers(drivers) {
-  const errors = [];
+    const errors = [];
 
-  // createOnly fields (license, insurance, city, documents) only apply to
-  // Create Driver requests - Modify/Disable rows never carry them.
-  const requiredKeys = DRIVER_FIELDS.filter(
-    (f) =>
-      f.required &&
-      !f.hiddenFromRequester &&
-      !(isEditMode && f.type === 'file') &&
-      !(f.createOnly && requestTypeName !== 'Create Driver')
-  ).map((f) => f.key);
+    // createOnly fields (license, insurance, city, documents) only apply to
+    // Create Driver requests - Modify/Disable rows never carry them. Editing
+    // a returned request doesn't re-populate file inputs, so skip
+    // re-requiring uploads there (the originals are still attached
+    // server-side). Runs the same field-level checks (required, format,
+    // length, allowed characters, date rules, file type/size) as the live
+    // table so nothing invalid can slip through on submit.
+    const fieldsToCheck = DRIVER_FIELDS.filter(
+      (f) =>
+        !f.hiddenFromRequester &&
+        !(isEditMode && f.type === 'file') &&
+        !(f.createOnly && requestTypeName !== 'Create Driver')
+    );
 
-  drivers.forEach((driver, index) => {
-    const rowErrors = [];
+    drivers.forEach((driver, index) => {
+      const rowErrors = fieldsToCheck
+        .map((field) => validateField(field, driver[field.key], { requireCreateFields: requestTypeName === 'Create Driver' }))
+        .filter(Boolean);
 
-    DRIVER_FIELDS.forEach((field) => {
-      if (
-        requiredKeys.includes(field.key) &&
-        (!driver[field.key] || String(driver[field.key]).trim() === '')
-      ) {
-        rowErrors.push(`${field.label} is required`);
+      if (rowErrors.length) {
+        errors.push({ row: index + 1, errors: rowErrors });
       }
     });
 
-    if (rowErrors.length) {
-      errors.push({
-        row: index + 1,
-        errors: rowErrors,
-      });
-    }
-  });
-
-  return errors;
-}
+    return errors;
+  }
 
   async function handleSubmit() {
     setError('');
@@ -160,10 +155,19 @@ export default function NewRequest({ requestType }) {
         return;
       }
 
-      if (requestTypeName === 'Disable Driver' && !effectiveDate) {
-        setError('Effective Date is required');
-        setSubmitting(false);
-        return;
+      if (requestTypeName === 'Disable Driver') {
+        if (!effectiveDate) {
+          setError('Effective Date is required');
+          setSubmitting(false);
+          return;
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (new Date(effectiveDate).getTime() < today.getTime()) {
+          setError('Effective Date cannot be in the past');
+          setSubmitting(false);
+          return;
+        }
       }
 
       // Driver license/ID/photo uploads are File objects that can't be
@@ -300,11 +304,15 @@ export default function NewRequest({ requestType }) {
 
           <section className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="font-medium text-gray-800 mb-4">Driver Records ({createDrivers.length})</h3>
+            {entryMethod === 'Excel' && createDrivers.length > 0 && (
+              <p className="text-sm text-gray-500 mb-4">
+                Review the uploaded driver records below, make any corrections needed, and attach each driver's
+                documents before submitting.
+              </p>
+            )}
             <DriverTable
               drivers={createDrivers}
               setDrivers={setCreateDrivers}
-              readOnly={!isEditMode && entryMethod === 'Excel'}
-              filesEditable={entryMethod === 'Excel' ? true : undefined}
               forceValidate={forceValidate}
               skipFileRequiredValidation={isEditMode}
             />
@@ -364,6 +372,7 @@ export default function NewRequest({ requestType }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
+            maxLength={500}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
             placeholder={
               requestTypeName === 'Modify Driver'
@@ -380,6 +389,7 @@ export default function NewRequest({ requestType }) {
             value={businessJustification}
             onChange={(e) => setBusinessJustification(e.target.value)}
             rows={3}
+            maxLength={1000}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
             placeholder="Explain why this request is needed"
           />
@@ -391,6 +401,7 @@ export default function NewRequest({ requestType }) {
             <input
               type="date"
               value={effectiveDate}
+              min={new Date().toISOString().slice(0, 10)}
               onChange={(e) => setEffectiveDate(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-2 text-sm"
             />

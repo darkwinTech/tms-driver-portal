@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { DRIVER_FIELDS } from '../../utils/constants.js';
+import { validateField } from '../../utils/validators.js';
 
 const EDITABLE_FIELDS = DRIVER_FIELDS.filter((f) => ['poNumber', 'poExpiry'].includes(f.key));
 
@@ -9,6 +11,8 @@ const EDITABLE_FIELDS = DRIVER_FIELDS.filter((f) => ['poNumber', 'poExpiry'].inc
  * changed so the processor can see the diff at a glance.
  */
 export default function ModifyDriverCard({ original, value, onChange }) {
+  const [touched, setTouched] = useState({});
+
   return (
     <div className="border border-gray-200 rounded-lg p-4">
       <div className="mb-3">
@@ -21,6 +25,7 @@ export default function ModifyDriverCard({ original, value, onChange }) {
           const oldVal = original[f.key] || '-';
           const newVal = value[f.key] || '';
           const changed = String(original[f.key] || '') !== String(newVal);
+          const error = touched[f.key] ? validateField(f, newVal) : null;
 
           return (
             <div key={f.key}>
@@ -28,12 +33,16 @@ export default function ModifyDriverCard({ original, value, onChange }) {
               <input
                 type={f.type || 'text'}
                 value={newVal}
+                maxLength={f.maxLength}
+                inputMode={f.inputMode}
                 onChange={(e) => onChange(f.key, e.target.value)}
+                onBlur={() => setTouched((prev) => ({ ...prev, [f.key]: true }))}
                 className={`w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${
-                  changed ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                  error ? 'border-red-400' : changed ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
                 }`}
               />
-              {changed && (
+              {error && <p className="text-[11px] text-red-500 mt-0.5">{error}</p>}
+              {changed && !error && (
                 <p className="text-xs text-gray-400 mt-1">
                   was: <span className="line-through">{oldVal}</span>
                 </p>

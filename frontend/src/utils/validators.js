@@ -5,6 +5,7 @@ import { DRIVER_FIELDS } from './constants.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^05\d{8}$/;
+const DEFAULT_MAX_FILE_SIZE_MB = 3;
 
 export function isValidEmail(value) {
   return typeof value === 'string' && EMAIL_REGEX.test(value.trim());
@@ -20,10 +21,18 @@ function isEmptyValue(value) {
   return false;
 }
 
+function startOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime();
+}
+
 /**
  * Validates a single driver field in isolation. Shared by the row-level
  * check (validateDriverRow) and DriverTable's live per-cell validation so
- * the two can never drift apart.
+ * the two can never drift apart. Covers required-ness, format (email/phone),
+ * length bounds, allowed-character patterns, date validity/business rules,
+ * dropdown membership, and file type/size for attachment fields.
  */
 export function validateField(field, value, { requireUsername = false, requireCreateFields = false } = {}) {
   if (!field) return null;
@@ -39,20 +48,52 @@ export function validateField(field, value, { requireUsername = false, requireCr
     return `${field.label} is required`;
   }
 
-  if (field.key === 'email' && !isEmptyValue(value) && !isValidEmail(value)) {
+  if (isEmptyValue(value)) return null;
+
+  if (field.key === 'email' && !isValidEmail(value)) {
     return 'Please enter a valid email address';
   }
 
-  if (field.key === 'phone' && !isEmptyValue(value) && !isValidPhone(value)) {
+  if (field.key === 'phone' && !isValidPhone(value)) {
     return 'Please enter a valid phone number.';
   }
 
-  if (
-    (field.key === 'poExpiry' || field.key === 'licenseExpiry') &&
-    !isEmptyValue(value) &&
-    Number.isNaN(new Date(value).getTime())
-  ) {
-    return `${field.label} is invalid`;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (field.minLength && trimmed.length < field.minLength) {
+      return `${field.label} must be at least ${field.minLength} characters`;
+    }
+    if (field.maxLength && trimmed.length > field.maxLength) {
+      return `${field.label} must be at most ${field.maxLength} characters`;
+    }
+    if (field.pattern && !field.pattern.test(trimmed)) {
+      return field.patternMessage || `${field.label} contains invalid characters`;
+    }
+  }
+
+  if (field.type === 'date') {
+    const time = new Date(value).getTime();
+    if (Number.isNaN(time)) {
+      return `${field.label} is invalid`;
+    }
+    if (field.noPastDate && time < startOfToday()) {
+      return `${field.label} cannot be in the past`;
+    }
+  }
+
+  if (field.type === 'select' && field.options && !field.options.includes(value)) {
+    return `Please select a valid ${field.label}`;
+  }
+
+  if (field.type === 'file' && value instanceof File) {
+    const extension = value.name.split('.').pop()?.toLowerCase();
+    if (field.allowedExtensions?.length && !field.allowedExtensions.includes(extension)) {
+      return `${field.label} must be one of the following file types: ${field.allowedExtensions.join(', ')}`;
+    }
+    const maxSizeMB = field.maxSizeMB || DEFAULT_MAX_FILE_SIZE_MB;
+    if (value.size > maxSizeMB * 1024 * 1024) {
+      return `${field.label} must be smaller than ${maxSizeMB}MB`;
+    }
   }
 
   return null;
@@ -64,9 +105,11 @@ const ROW_VALIDATED_KEYS = [
   'email',
   'phone',
   'username',
+  'poNumber',
   'poExpiry',
   'licenseNumber',
   'licenseExpiry',
+  'IDExpiry',
   'hasInsurance',
   'city',
 ];
