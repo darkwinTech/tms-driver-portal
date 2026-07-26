@@ -15,7 +15,7 @@ import Spinner from '../../components/common/Spinner.jsx';
 const FILE_FIELDS = DRIVER_FIELDS.filter((f) => f.type === 'file');
 
 const PAGE_COPY = {
-  'Create Driver': { title: 'Create New Driver', subtitle: 'Submit a new driver account request for AD / Operations / IT TMS processing.' },
+  'Create Driver': { title: 'Create New Driver', subtitle: 'Submit a new driver account request for processing.' },
   'Modify Driver': { title: 'Modify Existing Driver', subtitle: 'Search for an existing driver and update their PO details.' },
   'Disable Driver': { title: 'Disable Existing Driver', subtitle: 'Search for an existing driver and request that their access be disabled.' },
 };
