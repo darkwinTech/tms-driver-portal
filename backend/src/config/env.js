@@ -3,7 +3,7 @@ import path from 'node:path'
 
 dotenv.config();
 
-const requird = ['JWT_SECERT'];
+const required = ['JWT_SECRET'];
 const missing = required.filter((key) => ! process.env[key]);
 if (missing.length) {
     throw new Error(`Missing required environment variables:' ${missing.join(', ')}`);
@@ -16,5 +16,5 @@ export const config = Object.freeze({
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ||'8h',
     corsOrigin: process.env.CORS_ORIGIN ||'http://localhost:5173',
     powerAutomateFlowUrl: process.env.POWER_AUTOMATE_FLOW_URL || '',
-    uploadDir: path.resolve(process.cwd(), process.env.UPLOAD_DIR)
+    uploadDir: path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads')
 });
