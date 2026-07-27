@@ -26,11 +26,18 @@ export const attachmentUpload = multer({
   },
 });
 
+const EXCEL_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Some browsers/clients send a generic type for .xlsx; the extension check
+  // above still gates on the real file name, so this stays safe to allow.
+  'application/octet-stream',
+];
+
 export const excelUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const ok = /\.xlsx?$/i.test(file.originalname);
+    const ok = /\.xlsx$/i.test(file.originalname) && EXCEL_MIME_TYPES.includes(file.mimetype);
     if (!ok) {
       return cb(new ApiError('Only .xlsx files are accepted', 400));
     }
