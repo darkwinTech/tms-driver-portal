@@ -25,7 +25,7 @@
    ============================================================================= */
 
 -- Uncomment and point this at your target database before running:
--- USE YourExistingDatabaseName;
+-- USE tmsDirverPortal;
 -- GO
 
 SET NOCOUNT ON;
