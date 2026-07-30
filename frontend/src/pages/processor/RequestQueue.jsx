@@ -6,7 +6,7 @@ import EmptyState from '../../components/common/EmptyState.jsx';
 import Spinner from '../../components/common/Spinner.jsx';
 import { formatDate } from '../../utils/statusColors.js';
 
-const STATUS_OPTIONS = ['', 'Submitted', 'Under Review', 'Returned to Requester', 'Processing', 'AD Team Review', 'RPA Triggered', 'Completed', 'Rejected'];
+const STATUS_OPTIONS = ['', 'Submitted', 'Under Review – Operations Team', 'Returned to Requester', 'Processing – Operations Team', 'AD Team Review', 'Completed', 'Rejected'];
 
 export default function RequestQueue() {
   const [requests, setRequests] = useState([]);

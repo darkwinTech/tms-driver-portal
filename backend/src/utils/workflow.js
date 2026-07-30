@@ -5,30 +5,31 @@
 //   negative outcomes at review time: "Returned to Requester" is
 //   non-terminal (the requester can edit and resubmit - resubmission resets
 //   the status to Submitted), while "Rejected" is a terminal dead end.
-//   "Processing" is where Operations completes the hidden driver-profile
-//   fields (Group/Customer, Driver Class, Operating Hours). Completing the
-//   profiles hands the request over to the AD Team ("AD Team Review"). The
-//   AD Team then either rejects (with a mandatory reason) or approves -
-//   approval triggers the Power Automate RPA flow ("RPA Triggered", the flow
-//   sends the handoff email; account creation itself happens outside this
-//   app). Once the AD Team confirms the external account creation
-//   succeeded, they manually mark the request "Completed".
+//   "Processing – Operations Team" is where Operations completes the hidden
+//   driver-profile fields (Group/Customer, Driver Class, Operating Hours).
+//   Completing the profiles ("Complete Driver Profiles") now ALSO triggers
+//   the Power Automate RPA flow (an email to ServiceNow) immediately, then
+//   hands the request over to the AD Team ("AD Team Review"). The AD
+//   Team's only remaining action is to confirm the external AD work is
+//   done ("Mark as Complete") - they no longer trigger RPA and no longer
+//   have a reject option at this stage.
 //
 // - Modify Driver: there's no account action to perform, so Operations
 //   decides directly from Submitted - Accept completes the request
 //   immediately (and writes the change onto the driver's record), Reject is
-//   terminal. The AD Team is never involved.
+//   terminal. The AD Team is never involved. Unaffected by the RPA-trigger
+//   timing change above.
 //
 // - Disable Driver: Operations decides directly from Submitted too, but
-//   Accept doesn't complete the request - it hands off to the AD Team
-//   ("AD Team Review"), since disabling the account is their job, same
-//   handoff pattern as Create Driver (RPA Triggered -> Completed).
+//   Accept doesn't complete the request - it now triggers RPA AND hands off
+//   to the AD Team ("AD Team Review") in the same action, since disabling
+//   the account is their job. The AD Team then confirms with "Mark as
+//   Complete", same as Create Driver.
 const CREATE_TRANSITIONS = {
-  Submitted: { 'Under Review': 'Operations' },
-  'Under Review': { Processing: 'Operations', 'Returned to Requester': 'Operations', Rejected: 'Operations' },
-  Processing: { 'AD Team Review': 'Operations' },
-  'AD Team Review': { 'RPA Triggered': 'AD Team', Rejected: 'AD Team' },
-  'RPA Triggered': { Completed: 'AD Team' },
+  Submitted: { 'Under Review – Operations Team': 'Operations' },
+  'Under Review – Operations Team': { 'Processing – Operations Team': 'Operations', 'Returned to Requester': 'Operations', Rejected: 'Operations' },
+  'Processing – Operations Team': { 'AD Team Review': 'Operations' },
+  'AD Team Review': { Completed: 'AD Team' },
 };
 
 const MODIFY_TRANSITIONS = {
@@ -37,8 +38,7 @@ const MODIFY_TRANSITIONS = {
 
 const DISABLE_TRANSITIONS = {
   Submitted: { 'AD Team Review': 'Operations', Rejected: 'Operations' },
-  'AD Team Review': { 'RPA Triggered': 'AD Team', Rejected: 'AD Team' },
-  'RPA Triggered': { Completed: 'AD Team' },
+  'AD Team Review': { Completed: 'AD Team' },
 };
 
 function getTransitions(requestTypeName) {
@@ -51,6 +51,25 @@ export function isTransitionAllowed(requestTypeName, currentStatusName, targetSt
   const allowed = getTransitions(requestTypeName)[currentStatusName];
   if (!allowed || !allowed[targetStatusName]) return false;
   return allowed[targetStatusName] === roleName || roleName === 'Admin';
+}
+
+// Transitions that are structurally valid per isTransitionAllowed but carry
+// side effects (RPA trigger, or AD-completion finalize logic) that only a
+// dedicated endpoint may perform - the generic PATCH /:id/status handler
+// must refuse these even though the role/status check above would
+// otherwise allow them.
+export function isDedicatedEndpointOnly(requestTypeName, currentStatusName, targetStatusName) {
+  if (requestTypeName === 'Create Driver' && currentStatusName === 'Processing – Operations Team' && targetStatusName === 'AD Team Review') {
+    return true; // must go through completeDriverProfiles
+  }
+  if (
+    (requestTypeName === 'Create Driver' || requestTypeName === 'Disable Driver') &&
+    currentStatusName === 'AD Team Review' &&
+    targetStatusName === 'Completed'
+  ) {
+    return true; // must go through markComplete
+  }
+  return false;
 }
 
 const REMARKS_REQUIRED_STATUSES = ['Returned to Requester', 'Rejected'];

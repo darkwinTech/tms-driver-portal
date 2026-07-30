@@ -195,8 +195,8 @@ export default function OperationsRequestDetails() {
         {statusName === 'Submitted' && requestTypeName === 'Disable Driver' && (
           <>
             <p className="text-sm text-gray-500 mb-3">
-              Accept to forward this request to the AD Team, who will disable the account, or reject it
-              with a comment.
+              Accept to trigger the RPA flow, create the ServiceNow ticket, and forward this request to
+              the AD Team, who will disable the account - or reject it with a comment.
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -227,7 +227,7 @@ export default function OperationsRequestDetails() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => runTransition('Under Review')}
+              onClick={() => runTransition('Under Review – Operations Team')}
               className="px-5 py-2.5 rounded-md text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
             >
               Start Review
@@ -235,7 +235,7 @@ export default function OperationsRequestDetails() {
           </>
         )}
 
-        {statusName === 'Under Review' && requestTypeName === 'Create Driver' && (
+        {statusName === 'Under Review – Operations Team' && requestTypeName === 'Create Driver' && (
           <>
             <p className="text-sm text-gray-500 mb-3">
               Approve to move the request into Processing and complete the driver profiles, or send it back with a comment.
@@ -244,7 +244,7 @@ export default function OperationsRequestDetails() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => runTransition('Processing')}
+                onClick={() => runTransition('Processing – Operations Team')}
                 className="px-4 py-2 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 Approve
@@ -269,7 +269,7 @@ export default function OperationsRequestDetails() {
           </>
         )}
 
-        {statusName === 'Processing' && (
+        {statusName === 'Processing – Operations Team' && (
           <p className="text-sm text-gray-500">
             Request approved. Complete the driver profiles below to finish the Operations phase.
           </p>
@@ -277,7 +277,7 @@ export default function OperationsRequestDetails() {
 
         {statusName === 'AD Team Review' && requestTypeName === 'Disable Driver' && (
           <p className="text-sm text-gray-500">
-            Forwarded to the AD Team to disable the account. No further Operations action is required.
+            RPA triggered. Forwarded to the AD Team to disable the account. No further Operations action is required.
           </p>
         )}
 
@@ -287,7 +287,7 @@ export default function OperationsRequestDetails() {
           </p>
         )}
 
-        {['Under Review', 'Processing', 'Returned to Requester'].includes(statusName) && requestTypeName !== 'Create Driver' && (
+        {['Under Review – Operations Team', 'Processing – Operations Team', 'Returned to Requester'].includes(statusName) && requestTypeName !== 'Create Driver' && (
           <Alert type="warning">
             This {requestTypeName} request is sitting in an unexpected status ("{statusName}") left over from
             before this workflow existed - {requestTypeName} requests no longer pass through that stage.
@@ -304,7 +304,7 @@ export default function OperationsRequestDetails() {
         )}
       </section>
 
-      {statusName === 'Processing' && (
+      {statusName === 'Processing – Operations Team' && (
         <DriverProfilePanel request={request} onUpdated={setRequest} />
       )}
 

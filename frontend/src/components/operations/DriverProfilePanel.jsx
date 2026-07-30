@@ -147,8 +147,8 @@ export default function DriverProfilePanel({ request, onUpdated }) {
       </div>
       <p className="text-sm text-gray-500 mb-4">
         {completed
-          ? 'All driver profiles are complete. The request will be routed to the next processing team in a future stage.'
-          : 'Fill in Group / Customer, Driver Class and Operating Hours for every driver, save each one, then complete the profiles.'}
+          ? 'All driver profiles are complete. RPA has been triggered - the request has been handed to the AD Team.'
+          : 'Fill in Group / Customer, Driver Class and Operating Hours for every driver, save each one, then complete the profiles - this triggers the RPA flow and hands the request to the AD Team.'}
       </p>
 
       <Alert type="error">{error}</Alert>
