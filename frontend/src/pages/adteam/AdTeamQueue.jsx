@@ -8,7 +8,7 @@ import { formatDate } from '../../utils/statusColors.js';
 
 // Only AD-stage statuses appear here - the API already hides requests that
 // are still with Operations, so the filter show that.
-const STATUS_OPTIONS = ['', 'AD Team Review', 'RPA Triggered', 'Completed', 'Rejected'];
+const STATUS_OPTIONS = ['', 'AD Team Review', 'Completed', 'Rejected'];
 
 /**
  * Request queue for the AD Team - the second stage of the workflow. "Open"

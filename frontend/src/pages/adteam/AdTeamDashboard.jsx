@@ -35,9 +35,8 @@ export default function AdTeamDashboard() {
         <p className="text-sm text-gray-500">Requests handed over by Operations for account creation.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard label="Awaiting AD Review" value={stats.awaitingAction} color="bg-purple-500" />
-        <StatCard label="RPA Triggered" value={stats.rpaTriggered} color="bg-cyan-500" />
         <StatCard label="Completed" value={stats.completed} color="bg-green-500" />
         <StatCard label="Rejected" value={stats.rejected} color="bg-red-500" />
       </div>

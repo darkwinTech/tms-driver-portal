@@ -6,7 +6,7 @@ import EmptyState from '../../components/common/EmptyState.jsx';
 import Spinner from '../../components/common/Spinner.jsx';
 import { formatDate } from '../../utils/statusColors.js';
 
-const STATUS_OPTIONS = ['', 'Submitted', 'Under Review', 'Processing', 'Returned to Requester', 'AD Team Review', 'RPA Triggered', 'Completed', 'Rejected'];
+const STATUS_OPTIONS = ['', 'Submitted', 'Under Review – Operations Team', 'Processing – Operations Team', 'Returned to Requester', 'AD Team Review', 'Completed', 'Rejected'];
 
 /**
  * Incoming request queue for the Operations role - the first stage of the

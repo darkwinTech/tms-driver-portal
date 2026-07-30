@@ -24,9 +24,10 @@ export async function hydrateRequestSummary(reqRow) {
 }
 
 export async function hydrateRequestFull(reqRow) {
-  const [requester, currentProcessor, drivers, attachmentRows, historyRows] = await Promise.all([
+  const [requester, currentProcessor, adCompletedByUser, drivers, attachmentRows, historyRows] = await Promise.all([
     userRepository.findById(reqRow.requesterId),
     userRepository.findById(reqRow.currentProcessorId),
+    userRepository.findById(reqRow.adCompletedBy),
     driverRepository.findByRequestId(reqRow.id),
     attachmentRepository.findByRequestId(reqRow.id),
     historyRepository.findByRequestId(reqRow.id),
@@ -47,6 +48,7 @@ export async function hydrateRequestFull(reqRow) {
     ...reqRow,
     requester: userSummary(requester),
     currentProcessor: userSummary(currentProcessor),
+    adCompletedByUser: userSummary(adCompletedByUser),
     requestType: { name: reqRow.requestTypeName },
     status: { name: reqRow.statusName },
     drivers,
