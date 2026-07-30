@@ -30,7 +30,7 @@ router.post(
   requireRole('Operations'),
   asyncHandler(requestController.completeDriverProfiles)
 );
-router.post('/:id/approve-rpa', requireRole('AD Team'), asyncHandler(requestController.approveRpa));
+router.post('/:id/mark-complete', requireRole('AD Team'), asyncHandler(requestController.markComplete));
 
 router.post('/:id/attachments', attachmentUpload.single('file'), asyncHandler(requestController.uploadAttachment));
 router.get('/:id/attachments/:attachmentId', asyncHandler(requestController.previewAttachment));

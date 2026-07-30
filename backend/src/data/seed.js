@@ -15,7 +15,7 @@ export function buildSeed() {
   ];
 
   const requestTypes = ['Create Driver', 'Modify Driver', 'Disable Driver'];
-  const requestStatuses = ['Submitted', 'Under Review', 'Returned to Requester', 'Processing', 'AD Team Review', 'RPA Triggered', 'Completed', 'Rejected'];
+  const requestStatuses = ['Submitted', 'Under Review – Operations Team', 'Returned to Requester', 'Processing – Operations Team', 'AD Team Review', 'Completed', 'Rejected'];
 
   const drivers = [
     { id: 1, requestId: 1, username: 'mohammed.saeed', firstName: 'Mohammed', lastName: 'Saeed', email: 'mohammed.saeed@asmo.com', phone: '0551234567', role: 'Privileged User', customerGroup: 'CUEU/ARCO', driverClass: '30Ton_Drivers', operatingHours: 'Sun-Thu 8:00-17:00', licenseNumber: '21832743719', licenseExpiry: '2026-11-30', hasInsurance: 'Yes', city: 'Khobar', poNumber: '4821211244768', poExpiry: '2026-11-30' },
@@ -34,74 +34,80 @@ export function buildSeed() {
       id: 1, requestNumber: 'REQ-2026-0001', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Completed',
       description: 'Onboard two new drivers for the ARCO contract.', businessJustification: 'Fleet expansion for Q3 deliveries.',
       entryMethod: 'Manual', currentProcessorId: 4, driverProfilesCompletedAt: daysAgo(4), effectiveDate: null,
+      rpaTriggeredAt: daysAgo(4), adCompletedAt: daysAgo(2), adCompletedBy: 4,
       submittedDate: daysAgo(9), completedDate: daysAgo(2), createdAt: daysAgo(9), updatedAt: daysAgo(2),
     },
     {
       id: 2, requestNumber: 'REQ-2026-0002', requesterId: 1, requestTypeName: 'Modify Driver', statusName: 'Submitted',
       description: 'Update PO Number and PO Expiry Date for Ahmad Kabbani.', businessJustification: 'Contract renewed under a new purchase order.',
       entryMethod: 'Manual', currentProcessorId: null, driverProfilesCompletedAt: null, effectiveDate: null,
+      rpaTriggeredAt: null, adCompletedAt: null, adCompletedBy: null,
       submittedDate: daysAgo(3), completedDate: null, createdAt: daysAgo(3), updatedAt: daysAgo(3),
     },
     {
       id: 3, requestNumber: 'REQ-2026-0003', requesterId: 2, requestTypeName: 'Disable Driver', statusName: 'Submitted',
       description: 'Driver left the company.', businessJustification: 'Offboarding - access must be revoked immediately.',
       entryMethod: 'Manual', currentProcessorId: null, effectiveDate: daysAgo(-1), driverProfilesCompletedAt: null,
+      rpaTriggeredAt: null, adCompletedAt: null, adCompletedBy: null,
       submittedDate: daysAgo(1), completedDate: null, createdAt: daysAgo(1), updatedAt: daysAgo(1),
     },
     {
       id: 4, requestNumber: 'REQ-2026-0004', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Rejected',
       description: 'Onboard a driver for the temporary CUEU route.', businessJustification: 'Short-term contract coverage.',
       entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null, effectiveDate: null,
+      rpaTriggeredAt: null, adCompletedAt: null, adCompletedBy: null,
       submittedDate: daysAgo(6), completedDate: null, createdAt: daysAgo(6), updatedAt: daysAgo(5),
     },
     {
       id: 5, requestNumber: 'REQ-2026-0005', requesterId: 2, requestTypeName: 'Create Driver', statusName: 'Returned to Requester',
       description: 'Onboard a new driver for the SABIC route.', businessJustification: 'Replacing a driver who resigned.',
       entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null, effectiveDate: null,
+      rpaTriggeredAt: null, adCompletedAt: null, adCompletedBy: null,
       submittedDate: daysAgo(2), completedDate: null, createdAt: daysAgo(2), updatedAt: daysAgo(1),
     },
     {
-      id: 6, requestNumber: 'REQ-2026-0006', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Processing',
+      id: 6, requestNumber: 'REQ-2026-0006', requesterId: 1, requestTypeName: 'Create Driver', statusName: 'Processing – Operations Team',
       description: 'Onboard two drivers for the new NADEC distribution route.', businessJustification: 'New customer contract starting next month.',
       entryMethod: 'Manual', currentProcessorId: 6, driverProfilesCompletedAt: null, effectiveDate: null,
+      rpaTriggeredAt: null, adCompletedAt: null, adCompletedBy: null,
       submittedDate: daysAgo(4), completedDate: null, createdAt: daysAgo(4), updatedAt: daysAgo(1),
     },
     {
       id: 7, requestNumber: 'REQ-2026-0007', requesterId: 2, requestTypeName: 'Create Driver', statusName: 'AD Team Review',
       description: 'Onboard a driver for the ARCO night shift.', businessJustification: 'Coverage for extended delivery hours.',
       entryMethod: 'Manual', currentProcessorId: null, driverProfilesCompletedAt: daysAgo(1), effectiveDate: null,
+      rpaTriggeredAt: daysAgo(1), adCompletedAt: null, adCompletedBy: null,
       submittedDate: daysAgo(5), completedDate: null, createdAt: daysAgo(5), updatedAt: daysAgo(1),
     },
   ];
 
   const history = [
     { id: 1, requestId: 1, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(9) },
-    { id: 2, requestId: 1, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(7) },
-    { id: 3, requestId: 1, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Looks good, proceeding.', createdAt: daysAgo(6) },
-    { id: 4, requestId: 1, oldStatus: 'Processing', newStatus: 'AD Team Review', changedBy: 6, remarks: 'Driver profiles completed by Operations. Handed over to the AD Team.', createdAt: daysAgo(4) },
-    { id: 5, requestId: 1, oldStatus: 'AD Team Review', newStatus: 'RPA Triggered', changedBy: 4, remarks: 'Approved by AD Team - Power Automate RPA flow triggered.', createdAt: daysAgo(3) },
-    { id: 6, requestId: 1, oldStatus: 'RPA Triggered', newStatus: 'Completed', changedBy: 4, remarks: 'Account creation confirmed by AD Team. Accounts created in AD and DCT.', createdAt: daysAgo(2) },
+    { id: 2, requestId: 1, oldStatus: 'Submitted', newStatus: 'Under Review – Operations Team', changedBy: 6, remarks: null, createdAt: daysAgo(7) },
+    { id: 3, requestId: 1, oldStatus: 'Under Review – Operations Team', newStatus: 'Processing – Operations Team', changedBy: 6, remarks: 'Looks good, proceeding.', createdAt: daysAgo(6) },
+    { id: 4, requestId: 1, oldStatus: 'Processing – Operations Team', newStatus: 'AD Team Review', changedBy: 6, remarks: 'Driver profiles completed by Operations. RPA triggered. Handed over to the AD Team.', createdAt: daysAgo(4) },
+    { id: 6, requestId: 1, oldStatus: 'AD Team Review', newStatus: 'Completed', changedBy: 4, remarks: 'Account creation confirmed by AD Team. Accounts created in AD and DCT.', createdAt: daysAgo(2) },
 
     { id: 7, requestId: 2, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(3) },
 
     { id: 9, requestId: 3, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(1) },
 
     { id: 10, requestId: 4, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(6) },
-    { id: 11, requestId: 4, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(5.5) },
-    { id: 12, requestId: 4, oldStatus: 'Under Review', newStatus: 'Rejected', changedBy: 6, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
+    { id: 11, requestId: 4, oldStatus: 'Submitted', newStatus: 'Under Review – Operations Team', changedBy: 6, remarks: null, createdAt: daysAgo(5.5) },
+    { id: 12, requestId: 4, oldStatus: 'Under Review – Operations Team', newStatus: 'Rejected', changedBy: 6, remarks: 'Route was cancelled by the customer - driver account no longer needed.', createdAt: daysAgo(5) },
 
     { id: 13, requestId: 5, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(2) },
-    { id: 14, requestId: 5, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(1.5) },
-    { id: 15, requestId: 5, oldStatus: 'Under Review', newStatus: 'Returned to Requester', changedBy: 6, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
+    { id: 14, requestId: 5, oldStatus: 'Submitted', newStatus: 'Under Review – Operations Team', changedBy: 6, remarks: null, createdAt: daysAgo(1.5) },
+    { id: 15, requestId: 5, oldStatus: 'Under Review – Operations Team', newStatus: 'Returned to Requester', changedBy: 6, remarks: 'The uploaded driver license photo is blurry and the PO number does not match an active contract - please re-upload and correct.', createdAt: daysAgo(1) },
 
     { id: 16, requestId: 6, oldStatus: null, newStatus: 'Submitted', changedBy: 1, remarks: 'Request submitted by requester', createdAt: daysAgo(4) },
-    { id: 17, requestId: 6, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(2) },
-    { id: 18, requestId: 6, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(1) },
+    { id: 17, requestId: 6, oldStatus: 'Submitted', newStatus: 'Under Review – Operations Team', changedBy: 6, remarks: null, createdAt: daysAgo(2) },
+    { id: 18, requestId: 6, oldStatus: 'Under Review – Operations Team', newStatus: 'Processing – Operations Team', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(1) },
 
     { id: 19, requestId: 7, oldStatus: null, newStatus: 'Submitted', changedBy: 2, remarks: 'Request submitted by requester', createdAt: daysAgo(5) },
-    { id: 20, requestId: 7, oldStatus: 'Submitted', newStatus: 'Under Review', changedBy: 6, remarks: null, createdAt: daysAgo(3) },
-    { id: 21, requestId: 7, oldStatus: 'Under Review', newStatus: 'Processing', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(2) },
-    { id: 22, requestId: 7, oldStatus: 'Processing', newStatus: 'AD Team Review', changedBy: 6, remarks: 'Driver profiles completed by Operations. Handed over to the AD Team.', createdAt: daysAgo(1) },
+    { id: 20, requestId: 7, oldStatus: 'Submitted', newStatus: 'Under Review – Operations Team', changedBy: 6, remarks: null, createdAt: daysAgo(3) },
+    { id: 21, requestId: 7, oldStatus: 'Under Review – Operations Team', newStatus: 'Processing – Operations Team', changedBy: 6, remarks: 'Approved - completing driver profiles.', createdAt: daysAgo(2) },
+    { id: 22, requestId: 7, oldStatus: 'Processing – Operations Team', newStatus: 'AD Team Review', changedBy: 6, remarks: 'Driver profiles completed by Operations. RPA triggered. Handed over to the AD Team.', createdAt: daysAgo(1) },
   ];
 
   // Master list of already-existing/active drivers in the system (AD / DCT).

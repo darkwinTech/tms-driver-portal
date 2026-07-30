@@ -11,6 +11,7 @@ import {
 import { hydrateRequestSummary, hydrateRequestFull } from '../utils/hydrate.js';
 import {
   isTransitionAllowed,
+  isDedicatedEndpointOnly,
   isRemarksRequired,
   OPERATIONS_PROFILE_FIELDS,
   driverProfileMissingFields,
@@ -26,8 +27,10 @@ import {
   buildDriversExportBuffer,
   EXCEL_MIME_TYPE,
 } from '../services/excelService.js';
-// Statuses that mean the request currently sits with the AD Team.
-const AD_STAGE_STATUSES = ['AD Team Review', 'RPA Triggered'];
+// Statuses that mean the request currently sits with the AD Team. RPA
+// trigger now happens as a side effect of the Operations transition into
+// this status, so there's no separate "RPA Triggered" waiting state anymore.
+const AD_STAGE_STATUSES = ['AD Team Review'];
 // A request is visible to the AD Team once it has reached their stage -
 // either it is sitting there now, or it passed through "AD Team Review" on
 // its way to Completed/Rejected.
@@ -105,7 +108,6 @@ export async function getStats(req, res) {
   if (user.role === 'AD Team') {
     return res.json({
       awaitingAction: counts['AD Team Review'] || 0,
-      rpaTriggered: counts['RPA Triggered'] || 0,
       completed: counts['Completed'] || 0,
       rejected: counts['Rejected'] || 0,
       byStatus: counts,
@@ -114,16 +116,16 @@ export async function getStats(req, res) {
   if (isStaff) {
     return res.json({
       newRequests: counts['Submitted'] || 0,
-      inProgress: (counts['Processing'] || 0) + (counts['AD Team Review'] || 0) + (counts['RPA Triggered'] || 0),
+      inProgress: (counts['Processing – Operations Team'] || 0) + (counts['AD Team Review'] || 0),
       completed: counts['Completed'] || 0,
       rejected: counts['Rejected'] || 0,
-      waitingApproval: (counts['Submitted'] || 0) + (counts['Under Review'] || 0),
+      waitingApproval: (counts['Submitted'] || 0) + (counts['Under Review – Operations Team'] || 0),
       byStatus: counts,
     });
   }
   res.json({
-    pending: (counts['Submitted'] || 0) + (counts['Under Review'] || 0) + (counts['Returned to Requester'] || 0),
-    approved: (counts['Processing'] || 0) + (counts['AD Team Review'] || 0) + (counts['RPA Triggered'] || 0),
+    pending: (counts['Submitted'] || 0) + (counts['Under Review – Operations Team'] || 0) + (counts['Returned to Requester'] || 0),
+    approved: (counts['Processing – Operations Team'] || 0) + (counts['AD Team Review'] || 0),
     rejected: counts['Rejected'] || 0,
     completed: counts['Completed'] || 0,
     byStatus: counts,
@@ -196,6 +198,9 @@ export async function createRequest(req, res) {
     entryMethod: entryMethod || 'Manual',
     currentProcessorId: null,
     driverProfilesCompletedAt: null,
+    rpaTriggeredAt: null,
+    adCompletedAt: null,
+    adCompletedBy: null,
     submittedDate: now,
     completedDate: null,
     effectiveDate: effectiveDate || null,
@@ -225,31 +230,43 @@ export async function updateStatus(req, res) {
   if (!isTransitionAllowed(row.requestTypeName, currentStatusName, targetStatus, user.role)) {
     throw new ApiError(`Cannot move request from "${currentStatusName}" to "${targetStatus}" as ${user.role}`);
   }
+  if (isDedicatedEndpointOnly(row.requestTypeName, currentStatusName, targetStatus)) {
+    throw new ApiError(`Use the dedicated endpoint to move this request from "${currentStatusName}" to "${targetStatus}"`);
+  }
   if (isRemarksRequired(targetStatus) && !(remarks || '').trim()) {
     throw new ApiError('Please provide a comment explaining this decision');
   }
   const now = new Date().toISOString();
   const isStaff = isStaffRole(user.role);
+
+  // Operations accepting a Disable Driver request now triggers RPA (an
+  // email to ServiceNow, which owns everything from there) in the same
+  // action that hands it to the AD Team - the AD Team no longer triggers
+  // this themselves.
+  let rpaFields = {};
+  let historyRemarks = remarks || null;
+  if (targetStatus === 'AD Team Review' && row.requestTypeName === 'Disable Driver') {
+    if (row.rpaTriggeredAt) {
+      throw new ApiError('RPA has already been triggered for this request');
+    }
+    const hydrated = await hydrateRequestFull(row);
+    await triggerRpaFlow(hydrated);
+    rpaFields = { rpaTriggeredAt: now };
+    historyRemarks = remarks || 'Approved by Operations - forwarded to AD Team for account disablement.';
+  }
+
   await requestRepository.update(row.id, {
     statusName: targetStatus,
     currentProcessorId: isStaff ? user.id : row.currentProcessorId,
     completedDate: targetStatus === 'Completed' ? now : row.completedDate,
     updatedAt: now,
+    ...rpaFields,
   });
-  // Simulates AD actually creating the account once a Create Driver request
-  // is fully completed - only assigns a username to drivers that don't
-  // already have one.
-  if (targetStatus === 'Completed' && row.requestTypeName === 'Create Driver') {
-    const drivers = await driverRepository.findByRequestId(row.id);
-    await Promise.all(
-      drivers
-        .filter((d) => !d.username)
-        .map((d) => driverRepository.update(d.id, { username: `${d.firstName}.${d.lastName}@asmo.com`.toLowerCase() }))
-    );
-  }
   // Operations accepting a Modify Driver request completes it immediately -
   // write the requested PO Number/PO Expiry change onto the driver's actual
-  // record (found via the Create Driver request that produced it).
+  // record (found via the Create Driver request that produced it). Create
+  // Driver / Disable Driver no longer complete via this generic endpoint -
+  // see markComplete for their finalize side effects.
   if (targetStatus === 'Completed' && row.requestTypeName === 'Modify Driver') {
     const drivers = await driverRepository.findByRequestId(row.id);
     for (const d of drivers) {
@@ -259,31 +276,20 @@ export async function updateStatus(req, res) {
       }
     }
   }
-  // The AD Team confirming a Disable Driver request is what actually
-  // disables the account.
-  if (targetStatus === 'Completed' && row.requestTypeName === 'Disable Driver') {
-    const drivers = await driverRepository.findByRequestId(row.id);
-    for (const d of drivers) {
-      const original = await findOriginalDriver(d.username);
-      if (original) {
-        await driverRepository.update(original.id, { driverStatus: 'Disabled' });
-      }
-    }
-  }
   await historyRepository.create({
     requestId: row.id,
     oldStatus: currentStatusName,
     newStatus: targetStatus,
     changedBy: user.id,
-    remarks: remarks || null,
+    remarks: historyRemarks,
     createdAt: now,
   });
   await notificationRepository.create({
     userId: row.requesterId,
     requestId: row.id,
     title: `Request ${row.requestNumber} - ${targetStatus}`,
-    message: remarks
-      ? `Your request status changed to "${targetStatus}". Remarks: ${remarks}`
+    message: historyRemarks
+      ? `Your request status changed to "${targetStatus}". Remarks: ${historyRemarks}`
       : `Your request status changed to "${targetStatus}".`,
     isRead: false,
     createdAt: now,
@@ -296,7 +302,7 @@ export async function updateStatus(req, res) {
 // while the request is in Processing. Role gate: requireRole('Operations').
 export async function updateDriverProfile(req, res) {
   const row = await findRequestOr404(req.params.id);
-  if (row.statusName !== 'Processing') {
+  if (row.statusName !== 'Processing – Operations Team') {
     throw new ApiError('Driver profiles can only be updated while the request is in Processing');
   }
   if (row.driverProfilesCompletedAt) {
@@ -317,14 +323,15 @@ export async function updateDriverProfile(req, res) {
 }
 // ---------------------------------------------------------------------------
 // "Complete Driver Profiles": validates every driver has all three
-// Operations fields filled, hands the request to the AD Team. Role gate:
-// requireRole('Operations').
+// Operations fields filled, then immediately triggers the RPA flow, captures
+// the ServiceNow ticket, and hands the request to the AD Team with the
+// ticket already created. Role gate: requireRole('Operations').
 export async function completeDriverProfiles(req, res) {
   const row = await findRequestOr404(req.params.id);
-  if (row.statusName !== 'Processing') {
+  if (row.statusName !== 'Processing – Operations Team') {
     throw new ApiError('Driver profiles can only be completed while the request is in Processing');
   }
-  if (row.driverProfilesCompletedAt) {
+  if (row.driverProfilesCompletedAt || row.rpaTriggeredAt) {
     throw new ApiError('Driver profiles for this request have already been completed');
   }
   const drivers = await driverRepository.findByRequestId(row.id);
@@ -343,19 +350,24 @@ export async function completeDriverProfiles(req, res) {
       { validationErrors }
     );
   }
+
+  const hydrated = await hydrateRequestFull(row);
+  await triggerRpaFlow(hydrated);
+
   const now = new Date().toISOString();
   await requestRepository.update(row.id, {
     driverProfilesCompletedAt: now,
+    rpaTriggeredAt: now,
     statusName: 'AD Team Review',
     currentProcessorId: null,
     updatedAt: now,
   });
   await historyRepository.create({
     requestId: row.id,
-    oldStatus: 'Processing',
+    oldStatus: 'Processing – Operations Team',
     newStatus: 'AD Team Review',
     changedBy: req.user.id,
-    remarks: 'Driver profiles completed by Operations. Handed over to the AD Team.',
+    remarks: 'Driver profiles completed by Operations. RPA triggered. Handed over to the AD Team.',
     createdAt: now,
   });
   await notificationRepository.create({
@@ -370,30 +382,70 @@ export async function completeDriverProfiles(req, res) {
   res.json(await hydrateRequestFull(updated));
 }
 // ---------------------------------------------------------------------------
-// "Approve & Trigger RPA": the AD Team approves and triggers the Power
-// Automate flow. Role gate: requireRole('AD Team').
-export async function approveRpa(req, res) {
+// "Mark as Complete": the AD Team's only action once a request reaches
+// "AD Team Review" - RPA + the ServiceNow ticket already happened as a side
+// effect of the Operations transition that got it here. Records
+// adCompletedAt/adCompletedBy and runs the finalize side effects that used
+// to fire on generic Completion for these two types. No reject option at
+// this stage (retired by design). Role gate: requireRole('AD Team').
+export async function markComplete(req, res) {
   const row = await findRequestOr404(req.params.id);
   if (row.statusName !== 'AD Team Review') {
-    throw new ApiError(`Cannot trigger the RPA flow while the request is "${row.statusName}"`);
+    throw new ApiError(`Cannot mark this request complete while it is "${row.statusName}"`);
   }
-  const hydrated = await hydrateRequestFull(row);
-  await triggerRpaFlow(hydrated);
+  if (!['Create Driver', 'Disable Driver'].includes(row.requestTypeName)) {
+    throw new ApiError(`${row.requestTypeName} requests do not go through the AD Team`);
+  }
+
   const now = new Date().toISOString();
-  await requestRepository.update(row.id, { statusName: 'RPA Triggered', currentProcessorId: req.user.id, updatedAt: now });
+  await requestRepository.update(row.id, {
+    statusName: 'Completed',
+    completedDate: now,
+    adCompletedAt: now,
+    adCompletedBy: req.user.id,
+    currentProcessorId: req.user.id,
+    updatedAt: now,
+  });
+
+  // Simulates AD actually creating the account once a Create Driver request
+  // is fully completed - only assigns a username to drivers that don't
+  // already have one.
+  if (row.requestTypeName === 'Create Driver') {
+    const drivers = await driverRepository.findByRequestId(row.id);
+    await Promise.all(
+      drivers
+        .filter((d) => !d.username)
+        .map((d) => driverRepository.update(d.id, { username: `${d.firstName}.${d.lastName}@asmo.com`.toLowerCase() }))
+    );
+  }
+  // The AD Team confirming a Disable Driver request is what actually
+  // disables the account.
+  if (row.requestTypeName === 'Disable Driver') {
+    const drivers = await driverRepository.findByRequestId(row.id);
+    for (const d of drivers) {
+      const original = await findOriginalDriver(d.username);
+      if (original) {
+        await driverRepository.update(original.id, { driverStatus: 'Disabled' });
+      }
+    }
+  }
+
+  const remarks = row.requestTypeName === 'Disable Driver'
+    ? 'Driver account disabled by AD Team.'
+    : 'Account creation confirmed by AD Team.';
   await historyRepository.create({
     requestId: row.id,
     oldStatus: 'AD Team Review',
-    newStatus: 'RPA Triggered',
+    newStatus: 'Completed',
     changedBy: req.user.id,
-    remarks: 'Approved by AD Team - Request sent to ServiceNow.',
+    remarks,
     createdAt: now,
   });
   await notificationRepository.create({
     userId: row.requesterId,
     requestId: row.id,
-    title: `Request ${row.requestNumber} - RPA Triggered`,
-    message: 'Your request status changed to "RPA Triggered".',
+    title: `Request ${row.requestNumber} - Completed`,
+    message: `Your request status changed to "Completed". ${remarks}`,
     isRead: false,
     createdAt: now,
   });

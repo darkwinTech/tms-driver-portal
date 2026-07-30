@@ -27,6 +27,7 @@
 -- Uncomment and point this at your target database before running:
 -- USE tmsDirverPortal;
 -- GO
+-- Note tms changes in the SSMS 
 
 SET NOCOUNT ON;
 GO
@@ -58,9 +59,15 @@ IF OBJECT_ID('tms.RequestStatus', 'U') IS NULL
 BEGIN
     CREATE TABLE tms.RequestStatus (
         Id   INT IDENTITY(1,1) PRIMARY KEY,
-        Name NVARCHAR(30) NOT NULL UNIQUE
+        Name NVARCHAR(50) NOT NULL UNIQUE
     );
 END
+GO
+
+-- Widen for any database where this table was already created with the
+-- older NVARCHAR(30) - "Under Review – Operations Team" is 30 characters,
+-- zero headroom. Safe to re-run (no-op once already NVARCHAR(50)).
+ALTER TABLE tms.RequestStatus ALTER COLUMN Name NVARCHAR(50) NOT NULL;
 GO
 
 -- Seed values mirror backend/src/data/seed.js (requestTypes / requestStatuses).
@@ -71,15 +78,18 @@ FROM (VALUES ('Create Driver'), ('Modify Driver'), ('Disable Driver')) AS v(Name
 WHERE NOT EXISTS (SELECT 1 FROM tms.RequestType rt WHERE rt.Name = v.Name);
 GO
 
+-- "RPA Triggered" was retired: Operations now triggers the RPA flow as a
+-- side effect of the transition into "AD Team Review" itself, so there's
+-- no separate waiting status for it. "Under Review"/"Processing" carry the
+-- "– Operations Team" suffix to make the owning team explicit in the name.
 INSERT INTO tms.RequestStatus (Name)
 SELECT v.Name
 FROM (VALUES
     ('Submitted'),
-    ('Under Review'),
+    ('Under Review – Operations Team'),
     ('Returned to Requester'),
-    ('Processing'),
+    ('Processing – Operations Team'),
     ('AD Team Review'),
-    ('RPA Triggered'),
     ('Completed'),
     ('Rejected')
 ) AS v(Name)
@@ -135,6 +145,9 @@ BEGIN
         EntryMethod               NVARCHAR(20)  NOT NULL DEFAULT 'Manual',
         CurrentProcessorId        INT NULL,
         DriverProfilesCompletedAt DATETIME2 NULL,
+        RpaTriggeredAt            DATETIME2 NULL,
+        AdCompletedAt             DATETIME2 NULL,
+        AdCompletedById           INT NULL,
         EffectiveDate             DATE NULL,
         SubmittedDate             DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         CompletedDate             DATETIME2 NULL,
@@ -143,6 +156,7 @@ BEGIN
 
         CONSTRAINT FK_Request_Requester FOREIGN KEY (RequesterId) REFERENCES tms.User(Id),
         CONSTRAINT FK_Request_CurrentProcessor FOREIGN KEY (CurrentProcessorId) REFERENCES tms.User(Id),
+        CONSTRAINT FK_Request_AdCompletedBy FOREIGN KEY (AdCompletedById) REFERENCES tms.User(Id),
         CONSTRAINT FK_Request_Type FOREIGN KEY (RequestTypeId) REFERENCES tms.RequestType(Id),
         CONSTRAINT FK_Request_Status FOREIGN KEY (StatusId) REFERENCES tms.RequestStatus(Id),
         CONSTRAINT CK_Request_EntryMethod CHECK (EntryMethod IN ('Manual', 'Excel Upload'))
@@ -150,6 +164,32 @@ BEGIN
     -- Deliberately NO cascading delete from User to Request: users are
     -- deactivated (IsActive = 0), never hard-deleted, so a request's
     -- requester/processor history stays intact.
+END
+GO
+
+/* -----------------------------------------------------------------------------
+   3b. Request table additions - RPA trigger / AD completion
+   (idempotent ALTERs, for any database where tms.Request was already
+   created by an earlier version of this script, before these columns
+   existed)
+   ----------------------------------------------------------------------------- */
+
+IF COL_LENGTH('tms.Request', 'RpaTriggeredAt') IS NULL
+    ALTER TABLE tms.Request ADD RpaTriggeredAt DATETIME2 NULL;
+GO
+
+IF COL_LENGTH('tms.Request', 'AdCompletedAt') IS NULL
+    ALTER TABLE tms.Request ADD AdCompletedAt DATETIME2 NULL;
+GO
+
+IF COL_LENGTH('tms.Request', 'AdCompletedById') IS NULL
+    ALTER TABLE tms.Request ADD AdCompletedById INT NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Request_AdCompletedBy')
+BEGIN
+    ALTER TABLE tms.Request
+        ADD CONSTRAINT FK_Request_AdCompletedBy FOREIGN KEY (AdCompletedById) REFERENCES tms.User(Id);
 END
 GO
 
@@ -340,6 +380,6 @@ GO
    Sanity checks (optional - run manually after executing the script above)
    -----------------------------------------------------------------------------
    SELECT COUNT(*) AS RequestTypeCount FROM tms.RequestType;   -- expect 3
-   SELECT COUNT(*) AS RequestStatusCount FROM tms.RequestStatus; -- expect 8
+   SELECT COUNT(*) AS RequestStatusCount FROM tms.RequestStatus; -- expect 7
    SELECT * FROM sys.tables WHERE schema_id = SCHEMA_ID('tms') ORDER BY name;
    ----------------------------------------------------------------------------- */

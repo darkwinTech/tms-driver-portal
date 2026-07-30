@@ -1,31 +1,27 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getRequest, updateStatus, approveAndTriggerRpa } from '../../api/requests.js';
+import { getRequest, markComplete } from '../../api/requests.js';
 import StatusBadge from '../../components/common/StatusBadge.jsx';
 import Spinner from '../../components/common/Spinner.jsx';
 import DriverTable from '../../components/driver/DriverTable.jsx';
 import RequestTimeline from '../../components/request/RequestTimeline.jsx';
 import AttachmentsList from '../../components/request/AttachmentsList.jsx';
 import Alert from '../../components/common/Alert.jsx';
-import Modal from '../../components/common/Modal.jsx';
-import { formatDate } from '../../utils/statusColors.js';
+import { formatDate, formatDateTime } from '../../utils/statusColors.js';
 
 /**
- * AD Team request details - the second stage of the workflow. Requests
- * arrive here once Operations has completed the driver profiles (Create
- * Driver) or has accepted the disable request (Disable Driver). Modify
+ * AD Team request details - the second (and now only) stage of the AD
+ * workflow. Requests arrive here once Operations has completed the driver
+ * profiles (Create Driver) or has accepted the disable request (Disable
+ * Driver) - Operations already triggered the RPA flow and the ServiceNow
+ * ticket already exists by the time a request reaches this page. Modify
  * Driver requests never reach the AD Team - Operations completes those
  * directly.
  *
- *   AD Team Review -> "Approve & Send Tp System" moves the request to
- *                     RPA Triggered (the Power Automate flow - not this app -
- *                     generates and sends the handoff email), or "Reject"
- *                     ends the workflow (a rejection reason is mandatory and
- *                     is recorded in the history/timeline).
- *   RPA Triggered  -> account creation happens outside this application
- *                     (ServiceNow / AD provisioning). Once the AD Team
- *                     confirms it succeeded, "Mark as Completed" closes the
- *                     request.
+ *   AD Team Review -> "Mark as Complete" confirms the external AD work
+ *                     (account creation or disablement) is done and closes
+ *                     the request. This is the AD Team's only action here -
+ *                     there is no reject option at this stage.
  */
 export default function AdTeamRequestDetails() {
   const { id } = useParams();
@@ -33,9 +29,6 @@ export default function AdTeamRequestDetails() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
 
   useEffect(() => {
     getRequest(id)
@@ -44,54 +37,14 @@ export default function AdTeamRequestDetails() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function handleApprove() {
-    setBusy(true);
-    setError('');
-    try {
-      const res = await approveAndTriggerRpa(id);
-      setRequest(res.data);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to trigger the RPA flow');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleComplete() {
     setBusy(true);
     setError('');
     try {
-      const remarks = request?.requestType?.name === 'Disable Driver'
-        ? 'Driver account disabled by AD Team.'
-        : 'Account creation confirmed by AD Team.';
-      const res = await updateStatus(id, 'Completed', remarks);
+      const res = await markComplete(id);
       setRequest(res.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to complete the request');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function openRejectModal() {
-    setRejectReason('');
-    setRejectError('');
-    setRejectOpen(true);
-  }
-
-  async function handleRejectConfirm() {
-    if (!rejectReason.trim()) {
-      setRejectError('A rejection reason is required.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      const res = await updateStatus(id, 'Rejected', rejectReason.trim());
-      setRequest(res.data);
-      setRejectOpen(false);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reject the request');
     } finally {
       setBusy(false);
     }
@@ -179,38 +132,16 @@ export default function AdTeamRequestDetails() {
 
         {statusName === 'AD Team Review' && (
           <>
-            <p className="text-sm text-gray-500 mb-3">
+            <p className="text-sm text-gray-500 mb-1">
               {isDisable
-                ? 'Operations has approved this disable request. Approving triggers and sends the email to ServiceNow to disable the account.'
-                : 'Operations has completed the driver profiles. Approving triggers and sends the email to ServiceNow'}
+                ? 'Operations has triggered the RPA flow to disable this account.'
+                : 'Operations has completed the driver profiles and triggered the RPA flow.'}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={handleApprove}
-                className="px-5 py-2.5 rounded-md text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
-              >
-                {busy ? 'Working...' : 'Approve & Send To System'}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={openRejectModal}
-                className="px-4 py-2.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                Reject
-              </button>
-            </div>
-          </>
-        )}
-
-        {statusName === 'RPA Triggered' && (
-          <>
+            <p className="text-xs text-gray-400 mb-3">
+              RPA triggered {formatDateTime(request.rpaTriggeredAt)}
+            </p>
             <p className="text-sm text-gray-500 mb-3">
-              {isDisable
-                ? 'The email is triggered and sent to ServiceNow, once you have confirmed the account was disabled successfully, mark the request as completed to close it.'
-                : 'The email is triggered and sent to ServiceNow, once you have confirmed the accounts were created successfully, mark the request as completed to close it.'}
+              Confirm once the account {isDisable ? 'disablement' : 'creation'} has completed in Active Directory.
             </p>
             <button
               type="button"
@@ -218,13 +149,20 @@ export default function AdTeamRequestDetails() {
               onClick={handleComplete}
               className="px-5 py-2.5 rounded-md text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
             >
-              {busy ? 'Working...' : 'Mark as Completed'}
+              {busy ? 'Working...' : 'Mark as Complete'}
             </button>
           </>
         )}
 
         {statusName === 'Completed' && (
-          <p className="text-sm text-gray-500">This request is completed and closed. No further action is required.</p>
+          <div className="text-sm text-gray-500">
+            <p>This request is completed and closed. No further action is required.</p>
+            {request.adCompletedByUser && (
+              <p className="text-xs text-gray-400 mt-1">
+                Completed by {request.adCompletedByUser.fullName} on {formatDateTime(request.adCompletedAt)}
+              </p>
+            )}
+          </div>
         )}
 
         {statusName === 'Rejected' && (
@@ -250,49 +188,6 @@ export default function AdTeamRequestDetails() {
           <AttachmentsList requestId={request.id} attachments={request.attachments} readOnly />
         </section>
       </div>
-
-      <Modal
-        open={rejectOpen}
-        onClose={() => setRejectOpen(false)}
-        title="Reject Request"
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setRejectOpen(false)}
-              className="px-4 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleRejectConfirm}
-              className="px-4 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
-            >
-              {busy ? 'Working...' : 'Reject Request'}
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            Rejection is final - the workflow stops entirely and the requester cannot resubmit. The
-            reason is saved and shown in the request details and timeline.
-          </p>
-          <textarea
-            value={rejectReason}
-            onChange={(e) => { setRejectReason(e.target.value); setRejectError(''); }}
-            rows={4}
-            placeholder="Rejection reason (required)"
-            autoFocus
-            className={`w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary-500 ${
-              rejectError ? 'border-red-400' : 'border-gray-300'
-            }`}
-          />
-          {rejectError && <p className="text-sm text-red-500">{rejectError}</p>}
-        </div>
-      </Modal>
     </div>
   );
 }
