@@ -14,7 +14,14 @@ export const config = Object.freeze({
     nodeEnv: process.env.NODE_ENV || 'development',
     jwtSecret: process.env.JWT_SECRET, 
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ||'8h',
-    corsOrigin: process.env.CORS_ORIGIN ||'http://localhost:5173',
-    powerAutomateFlowUrl: process.env.POWER_AUTOMATE_FLOW_URL || '',
+    corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean),
+    graphTenantId: process.env.GRAPH_TENANT_ID || '',
+    graphClientId: process.env.GRAPH_CLIENT_ID || '',
+    graphClientSecret: process.env.GRAPH_CLIENT_SECRET || '',
+    serviceNowFromMailbox: process.env.SERVICENOW_FROM_MAILBOX || 'dana.almuallem@asmo.com',
+    serviceNowNotifyEmail: process.env.SERVICENOW_NOTIFY_EMAIL || 'aleen.alqarni@asmo.com',
     uploadDir: path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads')
 });

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createRequest, getRequest, resubmitRequest, uploadAttachment } from '../../api/requests.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { REQUEST_TYPES, DRIVER_FIELDS } from '../../utils/constants.js';
-import { validateField } from '../../utils/validators.js';
+import { validateField, findDuplicateLicenseNumberIndexes } from '../../utils/validators.js';
 import DriverTable from '../../components/driver/DriverTable.jsx';
 import ExcelUploadPanel from '../../components/driver/ExcelUploadPanel.jsx';
 import DriverSearchPanel from '../../components/driver/DriverSearchPanel.jsx';
@@ -127,10 +127,17 @@ export default function NewRequest({ requestType }) {
         !(f.createOnly && requestTypeName !== 'Create Driver')
     );
 
+    const duplicateIndexes =
+      requestTypeName === 'Create Driver' ? findDuplicateLicenseNumberIndexes(drivers) : new Set();
+
     drivers.forEach((driver, index) => {
       const rowErrors = fieldsToCheck
         .map((field) => validateField(field, driver[field.key], { requireCreateFields: requestTypeName === 'Create Driver' }))
         .filter(Boolean);
+
+      if (duplicateIndexes.has(index)) {
+        rowErrors.push('Driver License/ID/IQAMA Number is duplicated within this submission');
+      }
 
       if (rowErrors.length) {
         errors.push({ row: index + 1, errors: rowErrors });

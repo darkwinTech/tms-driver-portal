@@ -125,3 +125,23 @@ export function validateDriverRow(row, { requireUsername = false, requireCreateF
 
   return errors;
 }
+
+// Finds rows within the same batch (manual entry table) that share a
+// License/ID/IQAMA number. Mirrors the backend's check for immediate
+// feedback - the system-wide check still needs the backend, since the
+// browser has no view of every driver ever entered.
+export function findDuplicateLicenseNumberIndexes(drivers) {
+  const seen = new Map();
+  const duplicates = new Set();
+  drivers.forEach((driver, idx) => {
+    const value = (driver.licenseNumber || '').trim();
+    if (!value) return;
+    if (seen.has(value)) {
+      duplicates.add(seen.get(value));
+      duplicates.add(idx);
+    } else {
+      seen.set(value, idx);
+    }
+  });
+  return duplicates;
+}
