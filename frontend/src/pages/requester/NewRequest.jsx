@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { createRequest, getRequest, resubmitRequest, uploadAttachment } from '../../api/requests.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { REQUEST_TYPES, DRIVER_FIELDS } from '../../utils/constants.js';
