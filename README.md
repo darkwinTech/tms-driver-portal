@@ -67,8 +67,6 @@ POWER_AUTOMATE_FLOW_URL=
 UPLOAD_DIR=./uploads
 ```
 
-`POWER_AUTOMATE_FLOW_URL` can be left empty for local development — the AD-team notification trigger simply logs its payload to the console instead of making an outbound call (see [Known issues](#known-issues--in-progress-work)).
-
 ```bash
 npm run dev
 ```
