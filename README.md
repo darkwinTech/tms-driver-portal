@@ -63,7 +63,6 @@ NODE_ENV=development
 JWT_SECRET=<any long random string>
 JWT_EXPIRES_IN=8h
 CORS_ORIGIN=http://localhost:5173
-POWER_AUTOMATE_FLOW_URL=
 UPLOAD_DIR=./uploads
 ```
 
@@ -140,7 +139,6 @@ All routes below are mounted under `/api` and (except `/auth/login` and `/auth/r
 | `JWT_SECRET` | backend | Required — signs auth tokens |
 | `JWT_EXPIRES_IN` | backend | Token lifetime (default `8h`) |
 | `CORS_ORIGIN` | backend | Allowed frontend origin |
-| `POWER_AUTOMATE_FLOW_URL` | backend | AD-team notification trigger URL; empty = simulated locally |
 | `UPLOAD_DIR` | backend | Where uploaded attachments/Excel files are stored |
 | `VITE_API_URL` | frontend | Backend base URL the axios client targets |
 
