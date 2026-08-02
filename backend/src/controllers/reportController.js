@@ -23,7 +23,7 @@ export async function exportExcel(req, res) {
     .slice()
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const hydrated = await Promise.all(rows.map(hydrateRequestSummary));
-  const buffer = buildRequestsReportBuffer(hydrated);
+  const buffer = await buildRequestsReportBuffer(hydrated);
   res.setHeader('Content-Type', EXCEL_MIME_TYPE);
   res.setHeader('Content-Disposition', 'attachment; filename="requests_report.xlsx"');
   res.send(buffer);

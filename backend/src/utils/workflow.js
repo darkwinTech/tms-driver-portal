@@ -7,9 +7,9 @@
 //   the status to Submitted), while "Rejected" is a terminal dead end.
 //   "Processing – Operations Team" is where Operations completes the hidden
 //   driver-profile fields (Group/Customer, Driver Class, Operating Hours).
-//   Completing the profiles ("Complete Driver Profiles") now ALSO triggers
-//   the Power Automate RPA flow (an email to ServiceNow) immediately, then
-//   hands the request over to the AD Team ("AD Team Review"). The AD
+//   Completing the profiles ("Complete Driver Profiles") now ALSO sends
+//   the ServiceNow handoff email (via serviceNowEmailService.js) immediately,
+//   then hands the request over to the AD Team ("AD Team Review"). The AD
 //   Team's only remaining action is to confirm the external AD work is
 //   done ("Mark as Complete") - they no longer trigger RPA and no longer
 //   have a reject option at this stage.
