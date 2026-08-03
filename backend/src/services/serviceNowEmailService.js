@@ -1,53 +1,30 @@
 import { config } from '../config/env.js';
+import { escapeHtml } from '../utils/escapeHtml.js';
+import { sendSmtpMail } from './smtpMailService.js';
 
-let cachedToken = null;
-let cachedTokenExpiresAt = 0;
+// category mirrors the vocabulary securityReportService.js uses ('Created' | 'Disabled') -
+// Modify Driver never calls this, it has no ServiceNow handoff.
+const CATEGORY_COPY = {
+  Created: {
+    subjectLabel: 'Driver Account Creation',
+    intro: 'has completed the driver profile step and is ready for AD account creation.',
+  },
+  Disabled: {
+    subjectLabel: 'Driver Account Disablement',
+    intro: 'has been approved by Operations and forwarded to the AD Team for account disablement.',
+  },
+};
 
-async function getGraphAccessToken() {
-  if (cachedToken && Date.now() < cachedTokenExpiresAt) {
-    return cachedToken;
-  }
-
-  const tokenUrl = `https://login.microsoftonline.com/${config.graphTenantId}/oauth2/v2.0/token`;
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: config.graphClientId,
-    client_secret: config.graphClientSecret,
-    scope: 'https://graph.microsoft.com/.default',
-  });
-
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to get Graph access token (status ${response.status})`);
-  }
-  const data = await response.json();
-  cachedToken = data.access_token;
-  cachedTokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
-  return cachedToken;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[ch]));
-}
-
-function buildEmailSubject(request) {
-  return `Driver Profile Completed - Request ${request.requestNumber} - ${request.requester?.fullName || ''}`;
+function buildEmailSubject(request, category) {
+  const { subjectLabel } = CATEGORY_COPY[category];
+  return `${subjectLabel} - Request ${request.requestNumber} - ${request.requester?.fullName || ''}`;
 }
 
 // Narrows each driver down to the 6 fields ServiceNow needs (First Name,
 // Last Name, Email, Mobile Number, PO Number, PO Expiration Date), same
 // intent as the "Select" step in the original Power Automate design.
-function buildEmailHtml(request) {
+function buildEmailHtml(request, category) {
+  const { intro } = CATEGORY_COPY[category];
   const rows = (request.drivers || [])
     .map((d) => `
       <tr>
@@ -64,7 +41,7 @@ function buildEmailHtml(request) {
     <p>
       Request <strong>${escapeHtml(request.requestNumber)}</strong> submitted by
       ${escapeHtml(request.requester?.fullName)} (${escapeHtml(request.requester?.email)},
-      ${escapeHtml(request.requester?.department)}) has completed the driver profile step.
+      ${escapeHtml(request.requester?.department)}) ${intro}
     </p>
     <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
       <thead>
@@ -86,40 +63,15 @@ function buildEmailHtml(request) {
 // outside this app. So this is fire-and-forget: send the email, treat a
 // non-2xx response as failure, and don't expect anything back (no ticket
 // number is ever reported to this app).
-export async function sendServiceNowNotification(request) {
-  const subject = buildEmailSubject(request);
-  const html = buildEmailHtml(request);
+export async function sendServiceNowNotification(request, category) {
+  const subject = buildEmailSubject(request, category);
+  const html = buildEmailHtml(request, category);
 
-  if (!config.graphTenantId || !config.graphClientId || !config.graphClientSecret) {
-    console.info('[ServiceNow Email] Graph credentials not configured - simulating email send:', {
-      from: config.serviceNowFromMailbox,
-      to: config.serviceNowNotifyEmail,
-      subject,
-    });
-    return { simulated: true, subject, html };
-  }
-
-  const token = await getGraphAccessToken();
-  const response = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${config.serviceNowFromMailbox}/sendMail`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: {
-          subject,
-          body: { contentType: 'HTML', content: html },
-          toRecipients: [{ emailAddress: { address: config.serviceNowNotifyEmail } }],
-        },
-        saveToSentItems: true,
-      }),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(`ServiceNow email send failed with status ${response.status}`);
-  }
-  return { simulated: false, subject, html };
+  await sendSmtpMail({
+    to: config.serviceNowNotifyEmail,
+    from: config.serviceNowFromMailbox,
+    subject,
+    html,
+  });
+  return { subject, html };
 }

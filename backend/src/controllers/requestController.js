@@ -268,7 +268,7 @@ export async function updateStatus(req, res) {
       throw new ApiError('RPA has already been triggered for this request');
     }
     const hydrated = await hydrateRequestFull(row);
-    await sendServiceNowNotification(hydrated);
+    await sendServiceNowNotification(hydrated, 'Disabled');
     rpaFields = { rpaTriggeredAt: now };
     historyRemarks = remarks || 'Approved by Operations - forwarded to AD Team for account disablement.';
   }
@@ -390,7 +390,7 @@ export async function completeDriverProfiles(req, res) {
   }
 
   const hydrated = await hydrateRequestFull(row);
-  await sendServiceNowNotification(hydrated);
+  await sendServiceNowNotification(hydrated, 'Created');
 
   const now = new Date().toISOString();
   await requestRepository.update(row.id, {
