@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
-import * as XLSX from 'xlsx';
-import { validateDriverRow } from '../utils/validators.js';
+import { validateDriverRow, findDuplicateLicenseNumberIndexes } from '../utils/validators.js';
 import { KSA_CITIES } from '../utils/constants.js';
+import { findActiveDriversByLicenseNumber } from './driverLookupService.js';
 
 export const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -37,6 +37,20 @@ const COLUMN_HINTS = {
   poNumber: 'Enter the PO number using digits only (3-30 digits). This field is required.',
   poExpiry: 'Enter a valid current or future PO expiry date in YYYY-MM-DD format.',
 };
+
+// ExcelJS doesn't hand back a plain string for every cell - a cell Excel
+// auto-linkified (e.g. an email typed directly in becomes a mailto: link)
+// comes through as { text, hyperlink }, and rich-text cells come through as
+// { richText: [...] }. Unwrap those to the plain text before normalizing,
+// otherwise String(value) on the object produces "[object Object]".
+function cellText(value) {
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object') {
+    if (typeof value.text === 'string') return value.text;
+    if (Array.isArray(value.richText)) return value.richText.map((part) => part.text).join('');
+  }
+  return value;
+}
 
 function normalizeText(value) {
   if (value === undefined || value === null) return '';
@@ -260,45 +274,97 @@ export async function buildTemplateBuffer() {
   return workbook.xlsx.writeBuffer();
 }
 
-export function parseDriverExcelBuffer(buffer) {
-  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+export async function parseDriverExcelBuffer(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheet = workbook.worksheets[0];
 
   const headerToKey = COLUMNS.reduce((acc, column) => {
     acc[column.header] = column.key;
     return acc;
   }, {});
 
-  const drivers = [];
-  const errors = [];
+  const headersByColumn = {};
+  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headersByColumn[colNumber] = String(cellText(cell.value) ?? '').trim();
+  });
 
-  rawRows.forEach((raw, idx) => {
+  // Pass 1: collect every non-blank row with its sheet row number. Kept
+  // separate from validation below because the within-file duplicate check
+  // needs to see every row before it can flag any of them.
+  const rawRows = [];
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
     const row = {};
 
-    Object.entries(raw).forEach(([header, value]) => {
-      const key = headerToKey[String(header).trim()];
+    sheet.getRow(rowNumber).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const key = headerToKey[headersByColumn[colNumber]];
       if (!key) return;
+      const value = cellText(cell.value);
       row[key] = DATE_COLUMN_KEYS.has(key) ? normalizeDateValue(value) : normalizeText(value);
     });
 
     const hasAnyValue = Object.values(row).some((value) => value !== '' && value !== undefined && value !== null);
-    if (!hasAnyValue) return;
+    if (!hasAnyValue) continue;
 
     row.role = 'Privileged User';
+    rawRows.push({ rowNumber, row });
+  }
 
+  // Pass 2: format validation + License/ID/IQAMA uniqueness (within this
+  // file, and system-wide against every other active driver).
+  const duplicateIndexes = findDuplicateLicenseNumberIndexes(rawRows.map(({ row }) => row));
+  const drivers = [];
+  const errors = [];
+
+  for (let i = 0; i < rawRows.length; i += 1) {
+    const { rowNumber, row } = rawRows[i];
     const rowErrors = validateDriverRow(row, { requireCreateFields: true });
+
+    const licenseNumber = (row.licenseNumber || '').trim();
+    if (licenseNumber) {
+      if (duplicateIndexes.has(i)) {
+        rowErrors.push('Driver License/ID/IQAMA Number is duplicated within this file');
+      }
+      const existing = await findActiveDriversByLicenseNumber(licenseNumber);
+      if (existing.length) {
+        rowErrors.push('Driver License/ID/IQAMA Number already exists for another driver');
+      }
+    }
+
     if (rowErrors.length) {
-      errors.push({ row: idx + 1, errors: rowErrors });
+      errors.push({ row: rowNumber - 1, errors: rowErrors });
     }
 
     drivers.push(row);
-  });
+  }
 
   return { drivers, errors };
 }
 
-export function buildDriversExportBuffer(drivers) {
+async function buildSimpleExportBuffer(sheetName, headers, rows) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet(sheetName);
+  worksheet.columns = headers.map((header) => ({ header, key: header, width: 22 }));
+  worksheet.addRows(rows);
+  return workbook.xlsx.writeBuffer();
+}
+
+export async function buildDriversExportBuffer(drivers) {
+  const headers = [
+    'Username',
+    'First Name',
+    'Last Name',
+    'Email Address',
+    'Mobile Number',
+    'Role',
+    'Driver License/ID/IQAMA Number (CR)',
+    'Driver License Expiration Date (CR)',
+    'Driver ID/IQAMA Expiration Date (CR)',
+    'Driver/Car Insurance (CR)',
+    'Driver City (CR)',
+    'PO Number',
+    'PO Expiry Date',
+  ];
   const rows = drivers.map((driver) => ({
     Username: driver.username,
     'First Name': driver.firstName,
@@ -315,14 +381,20 @@ export function buildDriversExportBuffer(drivers) {
     'PO Expiry Date': driver.poExpiry,
   }));
 
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Drivers');
-
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  return buildSimpleExportBuffer('Drivers', headers, rows);
 }
 
-export function buildRequestsReportBuffer(requests) {
+export async function buildRequestsReportBuffer(requests) {
+  const headers = [
+    'Request Number',
+    'Requester',
+    'Requester Email',
+    'Type',
+    'Status',
+    'Driver Count',
+    'Submitted Date',
+    'Completed Date',
+  ];
   const rows = requests.map((request) => ({
     'Request Number': request.requestNumber,
     Requester: request.requester?.fullName,
@@ -334,9 +406,5 @@ export function buildRequestsReportBuffer(requests) {
     'Completed Date': request.completedDate ? request.completedDate.slice(0, 10) : '',
   }));
 
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Requests');
-
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  return buildSimpleExportBuffer('Requests', headers, rows);
 }

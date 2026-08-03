@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { DRIVER_FIELDS, EMPTY_DRIVER, MAX_DRIVERS } from '../../utils/constants.js';
-import { validateField } from '../../utils/validators.js';
+import { validateField, findDuplicateLicenseNumberIndexes } from '../../utils/validators.js';
 import OperatingHoursPicker from './OperatingHoursPicker.jsx';
 
 // Summary columns shown directly in each row while editing; every other
@@ -79,7 +79,14 @@ export default function DriverTable({
     if (skipFileRequiredValidation && f.type === 'file') return null;
     const isTouched = forceValidate || touched[`${idx}:${f.key}`];
     if (!isTouched) return null;
-    return validateField(f, row[f.key], { requireCreateFields: true });
+    const fieldError = validateField(f, row[f.key], { requireCreateFields: true });
+    if (fieldError) return fieldError;
+    // Flag same-table duplicates immediately, rather than only on submit -
+    // mirrors the backend's within-batch uniqueness check.
+    if (f.key === 'licenseNumber' && findDuplicateLicenseNumberIndexes(drivers).has(idx)) {
+      return 'Driver License/ID/IQAMA Number is duplicated within this submission';
+    }
+    return null;
   }
 
   // The browser's `accept` attribute is only a filter hint - the OS file

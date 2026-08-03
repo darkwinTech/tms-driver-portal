@@ -17,10 +17,10 @@ import {
   driverProfileMissingFields,
 } from '../utils/workflow.js';
 import { isStaffRole } from '../utils/roles.js';
-import { validateDriverRow } from '../utils/validators.js';
+import { validateDriverRow, findDuplicateLicenseNumberIndexes } from '../utils/validators.js';
 import { generateRequestNumber } from '../utils/requestNumber.js';
-import { findOriginalDriver } from '../services/driverLookupService.js';
-import { triggerRpaFlow } from '../services/powerAutomateService.js';
+import { findOriginalDriver, findActiveDriversByLicenseNumber } from '../services/driverLookupService.js';
+import { sendServiceNowNotification } from '../services/serviceNowEmailService.js';
 import {
   buildTemplateBuffer,
   parseDriverExcelBuffer,
@@ -54,12 +54,30 @@ async function assertRequestVisible(user, row) {
     throw new ApiError('This request has not reached the AD Team stage yet', 403);
   }
 }
-function validateDrivers(drivers, { requireUsername, requireCreateFields }) {
+async function validateDrivers(drivers, { requireUsername, requireCreateFields, excludeRequestId } = {}) {
   const validationErrors = [];
-  drivers.forEach((d, idx) => {
+  const duplicateIndexes = requireCreateFields ? findDuplicateLicenseNumberIndexes(drivers) : new Set();
+
+  for (let idx = 0; idx < drivers.length; idx += 1) {
+    const d = drivers[idx];
     const rowErrors = validateDriverRow(d, { requireUsername, requireCreateFields });
+
+    if (requireCreateFields) {
+      const licenseNumber = (d.licenseNumber || '').trim();
+      if (licenseNumber) {
+        if (duplicateIndexes.has(idx)) {
+          rowErrors.push('Driver License/ID/IQAMA Number is duplicated within this submission');
+        }
+        const existing = await findActiveDriversByLicenseNumber(licenseNumber, { excludeRequestId });
+        if (existing.length) {
+          rowErrors.push('Driver License/ID/IQAMA Number already exists for another driver');
+        }
+      }
+    }
+
     if (rowErrors.length) validationErrors.push({ row: idx + 1, errors: rowErrors });
-  });
+  }
+
   return validationErrors;
 }
 function toDriverRecord(requestId, d) {
@@ -183,7 +201,7 @@ export async function createRequest(req, res) {
   }
   const requireUsername = requestTypeName !== 'Create Driver';
   const requireCreateFields = requestTypeName === 'Create Driver';
-  const validationErrors = validateDrivers(drivers, { requireUsername, requireCreateFields });
+  const validationErrors = await validateDrivers(drivers, { requireUsername, requireCreateFields });
   if (validationErrors.length) {
     throw new ApiError('Driver validation failed', 400, { validationErrors });
   }
@@ -250,9 +268,35 @@ export async function updateStatus(req, res) {
       throw new ApiError('RPA has already been triggered for this request');
     }
     const hydrated = await hydrateRequestFull(row);
-    await triggerRpaFlow(hydrated);
+    await sendServiceNowNotification(hydrated);
     rpaFields = { rpaTriggeredAt: now };
     historyRemarks = remarks || 'Approved by Operations - forwarded to AD Team for account disablement.';
+  }
+
+  // Operations accepting a Modify Driver request completes it immediately -
+  // write the requested PO Number/PO Expiry change onto the driver's actual
+  // record (found via the Create Driver request that produced it). Create
+  // Driver / Disable Driver no longer complete via this generic endpoint -
+  // see markComplete for their finalize side effects.
+  //
+  // Re-validate here (not just at original submission) because time may
+  // have passed between the requester submitting this change and Operations
+  // acting on it - a PO expiry that was valid on submission could have since
+  // passed. Checked before any write happens so the whole transition stays
+  // atomic: either everything below applies, or nothing does.
+  let modifyDrivers = [];
+  if (targetStatus === 'Completed' && row.requestTypeName === 'Modify Driver') {
+    modifyDrivers = await driverRepository.findByRequestId(row.id);
+    const validationErrors = modifyDrivers
+      .map((d) => ({ driverName: `${d.firstName} ${d.lastName}`, errors: validateDriverRow(d, {}) }))
+      .filter(({ errors }) => errors.length);
+    if (validationErrors.length) {
+      throw new ApiError(
+        'Cannot complete this request - a driver record is no longer valid (e.g. the PO expiry date has passed since submission). Ask the requester to resubmit with corrected values.',
+        400,
+        { validationErrors }
+      );
+    }
   }
 
   await requestRepository.update(row.id, {
@@ -262,14 +306,8 @@ export async function updateStatus(req, res) {
     updatedAt: now,
     ...rpaFields,
   });
-  // Operations accepting a Modify Driver request completes it immediately -
-  // write the requested PO Number/PO Expiry change onto the driver's actual
-  // record (found via the Create Driver request that produced it). Create
-  // Driver / Disable Driver no longer complete via this generic endpoint -
-  // see markComplete for their finalize side effects.
   if (targetStatus === 'Completed' && row.requestTypeName === 'Modify Driver') {
-    const drivers = await driverRepository.findByRequestId(row.id);
-    for (const d of drivers) {
+    for (const d of modifyDrivers) {
       const original = await findOriginalDriver(d.username);
       if (original) {
         await driverRepository.update(original.id, { poNumber: d.poNumber, poExpiry: d.poExpiry });
@@ -352,7 +390,7 @@ export async function completeDriverProfiles(req, res) {
   }
 
   const hydrated = await hydrateRequestFull(row);
-  await triggerRpaFlow(hydrated);
+  await sendServiceNowNotification(hydrated);
 
   const now = new Date().toISOString();
   await requestRepository.update(row.id, {
@@ -473,7 +511,11 @@ export async function resubmitRequest(req, res) {
   }
   const requireUsername = row.requestTypeName !== 'Create Driver';
   const requireCreateFields = row.requestTypeName === 'Create Driver';
-  const validationErrors = validateDrivers(drivers, { requireUsername, requireCreateFields });
+  const validationErrors = await validateDrivers(drivers, {
+    requireUsername,
+    requireCreateFields,
+    excludeRequestId: row.id,
+  });
   if (validationErrors.length) {
     throw new ApiError('Driver validation failed', 400, { validationErrors });
   }
@@ -546,14 +588,14 @@ export async function downloadExcelTemplate(req, res) {
 }
 export async function uploadExcel(req, res) {
   if (!req.file) throw new ApiError('A file is required');
-  const { drivers, errors } = parseDriverExcelBuffer(req.file.buffer);
+  const { drivers, errors } = await parseDriverExcelBuffer(req.file.buffer);
   res.json({ drivers, errors, valid: errors.length === 0, totalRows: drivers.length });
 }
 export async function exportDrivers(req, res) {
   const row = await findRequestOr404(req.params.id);
   await assertRequestVisible(req.user, row);
   const drivers = await driverRepository.findByRequestId(row.id);
-  const buffer = buildDriversExportBuffer(drivers);
+  const buffer = await buildDriversExportBuffer(drivers);
   res.setHeader('Content-Type', EXCEL_MIME_TYPE);
   res.setHeader('Content-Disposition', `attachment; filename="request-${row.requestNumber}-drivers.xlsx"`);
   res.send(buffer);

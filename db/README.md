@@ -14,18 +14,20 @@ separate, later piece of work.
 Recommended first run: execute against a scratch/test database, confirm it
 runs clean end-to-end, then run it against the real shared database.
 
-## Known dependency risk (documentation only, no code change)
+## Resolved dependency risk (previously documented here, now fixed)
 
-`backend/package.json` pins `xlsx@0.18.5` (SheetJS), which has published
-CVEs (prototype pollution, ReDoS) with no fix available on the default npm
-registry — `npm audit` reports it as "No fix available". Patched SheetJS
-releases are published to SheetJS's own registry (`https://cdn.sheetjs.com/`)
-instead of npm's, so upgrading requires a manual decision to switch the
-package's registry source, not a routine `npm update`.
+This section used to flag `xlsx@0.18.5` (SheetJS) as an unfixable
+`npm audit` finding (prototype pollution, ReDoS, "No fix available" since
+SheetJS stopped publishing patches to the npm registry). That dependency has
+since been removed entirely — `backend/src/services/excelService.js` now
+does all Excel read/write work through `exceljs` alone, which was already a
+dependency for the upload template builder.
 
-Separately, `exceljs`'s own dependency tree (`archiver`, `uuid`, `glob`,
-`minimatch`, `rimraf`, `brace-expansion`) currently reports several
-high/moderate advisories via `npm audit`. `npm audit fix --force` only
-resolves them by downgrading `exceljs` to `3.4.0`, an older major version —
-not applied here, since that's a breaking change that needs its own
-evaluation rather than being silently forced through a schema/security pass.
+The `exceljs`-transitive `uuid` advisory (moderate, buffer bounds check) is
+resolved via a `"overrides": { "uuid": "^11.1.1" }` entry in
+`backend/package.json`, which pins the nested `uuid` dependency to a patched
+version without downgrading `exceljs` itself.
+
+`backend` and `frontend` both report 0 `npm audit` vulnerabilities as of this
+change, aside from one documented, non-exploitable finding in the frontend
+(see `frontend/README.md`).

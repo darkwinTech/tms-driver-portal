@@ -32,9 +32,10 @@ Each request type follows its own path (see `../backend/src/workflow.js`):
 - **Modify Driver**: `Submitted → Completed | Rejected` — a single Operations decision (Accept applies the change directly to the driver's record, no AD Team involved).
 - **Disable Driver**: `Submitted → AD Team Review → RPA Triggered → Completed`, or `Rejected` at Submitted — Operations accepts and forwards to the AD Team, who own the actual account disablement.
 
-Account creation/disablement happens outside this application via a Power
-Automate flow (`backend/src/services/powerAutomateService.js`); this app
-never sends the handoff email itself.
+Account creation/disablement happens outside this application: the backend
+sends a handoff email to ServiceNow directly via Microsoft Graph
+(`backend/src/services/serviceNowEmailService.js`); this app has no further
+visibility once that email is sent.
 
 ## 2. API layer
 
@@ -49,3 +50,17 @@ Create Driver requests (`GET /api/drivers/my-completed`), not a separate
 global directory — a driver only becomes searchable once their Create
 Driver request has actually completed and they've been assigned a
 username.
+
+## 4. Known dependency finding (documented, not exploitable here)
+
+`npm audit` flags `react-router`/`react-router-dom` for a CSRF advisory
+([GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2)).
+That advisory only affects apps using React Router's **unstable RSC (React
+Server Components)** APIs — a server-rendering/framework-mode feature this
+app doesn't use anywhere; this is a client-side Vite SPA with no SSR/RSC. No
+patched release exists on npm yet (latest published is still `7.18.2`,
+inside the flagged range) — the only "fix" `npm audit` currently offers is a
+forced downgrade to `7.11.0`, which would give up several versions of real
+fixes to avoid a threat that doesn't apply to this app's configuration. This
+is an intentionally accepted, non-exploitable finding — revisit once a real
+patched version ships.
