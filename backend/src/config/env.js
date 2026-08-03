@@ -18,10 +18,14 @@ export const config = Object.freeze({
         .split(',')
         .map((o) => o.trim())
         .filter(Boolean),
-    graphTenantId: process.env.GRAPH_TENANT_ID || '',
-    graphClientId: process.env.GRAPH_CLIENT_ID || '',
-    graphClientSecret: process.env.GRAPH_CLIENT_SECRET || '',
     serviceNowFromMailbox: process.env.SERVICENOW_FROM_MAILBOX || 'dana.almuallem@asmo.com',
     serviceNowNotifyEmail: process.env.SERVICENOW_NOTIFY_EMAIL || 'aleen.alqarni@asmo.com',
+    smtpHost: process.env.SMTP_HOST || '',
+    smtpPort: Number(process.env.SMTP_PORT) || 587,
+    smtpSecure: process.env.SMTP_SECURE === 'true',
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || '',
+    smtpFromAddress: process.env.SMTP_FROM_ADDRESS || 'noreply@asmo.com',
+    securityReportRecipient: process.env.SECURITY_REPORT_EMAIL || 'cybersecurity-team@asmo.com',
     uploadDir: path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads')
 });

@@ -56,8 +56,8 @@ export const DRIVER_FIELDS = [
   },
   {
     key: 'licenseNumber', label: 'Driver License/ID/IQAMA Number (CR)',
-    placeholder: "Enter driver's License, National ID, or IQAMA Number.",
-    required: true, createOnly: true, minLength: 5, maxLength: 20,
+    placeholder: "Enter driver's License, National ID, or IQAMA Number (10 digits).",
+    required: true, createOnly: true, minLength: 10, maxLength: 10,
     pattern: DIGITS_PATTERN, patternMessage: 'Driver License/ID/IQAMA Number may only contain numbers', inputMode: 'numeric',
   },
   { key: 'licenseExpiry', label: 'Driver License Expiration Date (CR)', type: 'date', required: true, createOnly: true, noPastDate: true },

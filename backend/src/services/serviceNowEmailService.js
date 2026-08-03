@@ -1,44 +1,6 @@
 import { config } from '../config/env.js';
-
-let cachedToken = null;
-let cachedTokenExpiresAt = 0;
-
-async function getGraphAccessToken() {
-  if (cachedToken && Date.now() < cachedTokenExpiresAt) {
-    return cachedToken;
-  }
-
-  const tokenUrl = `https://login.microsoftonline.com/${config.graphTenantId}/oauth2/v2.0/token`;
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: config.graphClientId,
-    client_secret: config.graphClientSecret,
-    scope: 'https://graph.microsoft.com/.default',
-  });
-
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to get Graph access token (status ${response.status})`);
-  }
-  const data = await response.json();
-  cachedToken = data.access_token;
-  cachedTokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
-  return cachedToken;
-}
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[ch]));
-}
+import { escapeHtml } from '../utils/escapeHtml.js';
+import { sendSmtpMail } from './smtpMailService.js';
 
 function buildEmailSubject(request) {
   return `Driver Profile Completed - Request ${request.requestNumber} - ${request.requester?.fullName || ''}`;
@@ -90,36 +52,11 @@ export async function sendServiceNowNotification(request) {
   const subject = buildEmailSubject(request);
   const html = buildEmailHtml(request);
 
-  if (!config.graphTenantId || !config.graphClientId || !config.graphClientSecret) {
-    console.info('[ServiceNow Email] Graph credentials not configured - simulating email send:', {
-      from: config.serviceNowFromMailbox,
-      to: config.serviceNowNotifyEmail,
-      subject,
-    });
-    return { simulated: true, subject, html };
-  }
-
-  const token = await getGraphAccessToken();
-  const response = await fetch(
-    `https://graph.microsoft.com/v1.0/users/${config.serviceNowFromMailbox}/sendMail`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: {
-          subject,
-          body: { contentType: 'HTML', content: html },
-          toRecipients: [{ emailAddress: { address: config.serviceNowNotifyEmail } }],
-        },
-        saveToSentItems: true,
-      }),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(`ServiceNow email send failed with status ${response.status}`);
-  }
-  return { simulated: false, subject, html };
+  await sendSmtpMail({
+    to: config.serviceNowNotifyEmail,
+    from: config.serviceNowFromMailbox,
+    subject,
+    html,
+  });
+  return { subject, html };
 }

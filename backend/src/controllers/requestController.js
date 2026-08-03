@@ -21,6 +21,7 @@ import { validateDriverRow, findDuplicateLicenseNumberIndexes } from '../utils/v
 import { generateRequestNumber } from '../utils/requestNumber.js';
 import { findOriginalDriver, findActiveDriversByLicenseNumber } from '../services/driverLookupService.js';
 import { sendServiceNowNotification } from '../services/serviceNowEmailService.js';
+import { sendSecurityTeamReport } from '../services/securityReportService.js';
 import {
   buildTemplateBuffer,
   parseDriverExcelBuffer,
@@ -332,6 +333,16 @@ export async function updateStatus(req, res) {
     isRead: false,
     createdAt: now,
   });
+  if (targetStatus === 'Completed' && row.requestTypeName === 'Modify Driver') {
+    try {
+      const finalRow = await requestRepository.findById(row.id);
+      const hydratedForReport = await hydrateRequestFull(finalRow);
+      await sendSecurityTeamReport(hydratedForReport, 'Modified');
+      await requestRepository.update(row.id, { securityReportSentAt: now });
+    } catch (err) {
+      console.error(`[Security Report] Failed to send report for request ${row.requestNumber}:`, err);
+    }
+  }
   const updated = await requestRepository.findById(row.id);
   res.json(await hydrateRequestFull(updated));
 }
@@ -487,6 +498,15 @@ export async function markComplete(req, res) {
     isRead: false,
     createdAt: now,
   });
+  try {
+    const category = row.requestTypeName === 'Disable Driver' ? 'Disabled' : 'Created';
+    const finalRow = await requestRepository.findById(row.id);
+    const hydratedForReport = await hydrateRequestFull(finalRow);
+    await sendSecurityTeamReport(hydratedForReport, category);
+    await requestRepository.update(row.id, { securityReportSentAt: now });
+  } catch (err) {
+    console.error(`[Security Report] Failed to send report for request ${row.requestNumber}:`, err);
+  }
   const updated = await requestRepository.findById(row.id);
   res.json(await hydrateRequestFull(updated));
 }

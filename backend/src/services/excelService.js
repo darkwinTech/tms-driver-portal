@@ -29,7 +29,7 @@ const COLUMN_HINTS = {
   lastName: 'Enter the driver last name (2-50 letters). This field is required.',
   email: 'Enter a valid email address, for example: name@example.com',
   phone: 'Enter the mobile number using digits only, for example: 0552112332',
-  licenseNumber: 'Enter the driver License/ID/IQAMA number using digits only (5-20 digits). This field is required.',
+  licenseNumber: 'Enter the driver License/ID/IQAMA number using digits only (10 digits). This field is required.',
   licenseExpiry: 'Enter a valid current or future date in YYYY-MM-DD format.',
   IDExpiry: 'Enter a valid current or future date in YYYY-MM-DD format.',
   hasInsurance: 'Select Yes or No from the dropdown list.',
@@ -248,7 +248,7 @@ export async function buildTemplateBuffer() {
     applyRequiredTextValidation(lastNameCell, COLUMN_HINTS.lastName, { minLength: 2, maxLength: 50 });
     applyEmailValidation(emailCell, rowNumber);
     applyPhoneValidation(phoneCell, rowNumber);
-    applyNumericTextValidation(licenseNumberCell, COLUMN_HINTS.licenseNumber, { minLength: 5, maxLength: 20 });
+    applyNumericTextValidation(licenseNumberCell, COLUMN_HINTS.licenseNumber, { minLength: 10, maxLength: 10 });
 
     applyDateValidation(licenseExpiryCell, rowNumber, 'F', COLUMN_HINTS.licenseExpiry, 'Invalid License Expiry Date');
     applyDateValidation(idExpiryCell, rowNumber, 'G', COLUMN_HINTS.IDExpiry, 'Invalid ID/IQAMA Expiry Date');

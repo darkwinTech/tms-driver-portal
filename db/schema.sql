@@ -208,7 +208,7 @@ BEGIN
         CustomerGroup  NVARCHAR(50)  NULL,
         DriverClass    NVARCHAR(50)  NULL,
         OperatingHours NVARCHAR(100) NULL,
-        LicenseNumber  NVARCHAR(20)  NULL,
+        LicenseNumber  NVARCHAR(10)  NULL,
         LicenseExpiry  DATE NULL,
         IDExpiry       DATE NULL,
         HasInsurance   NVARCHAR(3)   NULL,
@@ -221,7 +221,7 @@ BEGIN
         CONSTRAINT FK_Driver_Request FOREIGN KEY (RequestId) REFERENCES tms.Request(Id) ON DELETE CASCADE,
         CONSTRAINT CK_Driver_Phone CHECK (Phone LIKE '05[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'),
         CONSTRAINT CK_Driver_LicenseNumber CHECK (
-            LicenseNumber IS NULL OR (LicenseNumber NOT LIKE '%[^0-9]%' AND LEN(LicenseNumber) BETWEEN 5 AND 20)
+            LicenseNumber IS NULL OR (LicenseNumber NOT LIKE '%[^0-9]%' AND LEN(LicenseNumber) = 10)
         ),
         CONSTRAINT CK_Driver_PoNumber CHECK (
             PoNumber IS NULL OR (PoNumber NOT LIKE '%[^0-9]%' AND LEN(PoNumber) BETWEEN 3 AND 30)

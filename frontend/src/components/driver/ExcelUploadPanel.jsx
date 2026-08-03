@@ -62,7 +62,7 @@ export default function ExcelUploadPanel({ onParsed }) {
         >
           Upload Filled Template
         </button>
-        <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleFileChange} />
+        <input ref={fileInputRef} type="file" accept=".xlsx" hidden onChange={handleFileChange} />
         {fileName && <span className="text-sm text-gray-500">{fileName}</span>}
         {loading && <span className="text-sm text-gray-500">Validating...</span>}
       </div>
