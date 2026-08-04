@@ -13,7 +13,7 @@ npm run dev
 
 Opens at `http://localhost:5173`.
 
-### Demo accounts (password for all: `Password123!`)
+### Demo accounts (password for all: `cc`)
 
 | Email | Role |
 | --- | --- |
