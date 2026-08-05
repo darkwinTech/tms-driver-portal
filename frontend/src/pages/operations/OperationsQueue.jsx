@@ -87,6 +87,7 @@ export default function OperationsQueue() {
                 <th className="px-5 py-2 text-left">Type</th>
                 <th className="px-5 py-2 text-left">Submitted</th>
                 <th className="px-5 py-2 text-left">Status</th>
+                <th className="px-5 py-2 text-left">Assigned To</th>
                 <th className="px-5 py-2 text-left">Drivers</th>
                 <th className="px-5 py-2 text-right">Actions</th>
               </tr>
@@ -99,6 +100,7 @@ export default function OperationsQueue() {
                   <td className="px-5 py-2.5">{r.requestType?.name}</td>
                   <td className="px-5 py-2.5">{formatDate(r.submittedDate || r.createdAt)}</td>
                   <td className="px-5 py-2.5"><StatusBadge status={r.status?.name} /></td>
+                  <td className="px-5 py-2.5">{r.currentProcessor?.fullName || 'Unassigned'}</td>
                   <td className="px-5 py-2.5">{r.drivers?.length || 0}</td>
                   <td className="px-5 py-2.5 text-right">
                     <Link

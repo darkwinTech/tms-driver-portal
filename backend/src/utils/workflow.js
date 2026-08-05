@@ -89,3 +89,15 @@ export const OPERATIONS_PROFILE_FIELDS = [
 export function driverProfileMissingFields(driver) {
   return OPERATIONS_PROFILE_FIELDS.filter((f) => !(driver[f.key] || '').trim()).map((f) => f.label);
 }
+
+// Statuses during which a request is still "owned" by Operations - i.e. it
+// hasn't yet been handed to the AD Team or reached a terminal state. Shared
+// by the assign/reassign endpoint (only these statuses can be reassigned)
+// and the per-employee ownership lock (a plain Operations employee can only
+// see/act on a request in one of these statuses if it's unclaimed or theirs).
+export const OPERATIONS_ACTIVE_STATUSES = [
+  'Submitted',
+  'Under Review – Operations Team',
+  'Processing – Operations Team',
+  'Returned to Requester',
+];

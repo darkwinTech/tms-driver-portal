@@ -34,7 +34,7 @@ const navLinkClass = ({ isActive }) =>
   }`;
 
 export default function Sidebar({ open = false, onClose = () => {} }) {
-  const { isProcessor, isOperations, isAdTeam } = useAuth();
+  const { isProcessor, isOperations, isOperationsManager, isAdTeam } = useAuth();
   const location = useLocation();
   const onNewRequestPage = NEW_REQUEST_SUBLINKS.some((l) => location.pathname === l.to);
   const [newRequestOpen, setNewRequestOpen] = useState(onNewRequestPage);
@@ -65,7 +65,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         />
       </NavLink>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {isOperations ? (
+        {isOperations || isOperationsManager ? (
           operationsLinks.map((link) => (
             <NavLink key={link.to} to={link.to} end={link.to === '/'} onClick={onClose} className={navLinkClass}>
               {link.label}

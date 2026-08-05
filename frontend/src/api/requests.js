@@ -26,6 +26,11 @@ export function updateStatus(id, targetStatus, remarks) {
 }
 
 // ---------------------------------------------------------------------------
+export function assignRequest(id, assigneeId) {
+  return apiClient.patch(`/requests/${id}/assign`, { assigneeId });
+}
+
+// ---------------------------------------------------------------------------
 export function updateDriverProfile(requestId, driverId, fields = {}) {
   return apiClient.patch(`/requests/${requestId}/drivers/${driverId}/profile`, fields);
 }
@@ -87,6 +92,19 @@ export async function downloadAttachment(requestId, attachmentId, fileName) {
   const link = document.createElement('a');
   link.href = objectUrl;
   link.download = fileName || 'download';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+// ---------------------------------------------------------------------------
+export async function downloadSecurityReportPdf(id, fileName) {
+  const res = await apiClient.get(`/requests/${id}/security-report`, { responseType: 'blob' });
+  const objectUrl = URL.createObjectURL(res.data);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = fileName || 'security-report.pdf';
   document.body.appendChild(link);
   link.click();
   link.remove();

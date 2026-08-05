@@ -21,9 +21,9 @@ import AdTeamQueue from '../pages/adteam/AdTeamQueue.jsx';
 import AdTeamRequestDetails from '../pages/adteam/AdTeamRequestDetails.jsx';
 
 function HomeRedirect() {
-  const { isProcessor, isOperations, isAdTeam, loading } = useAuth();
+  const { isProcessor, isOperations, isOperationsManager, isAdTeam, loading } = useAuth();
   if (loading) return <Spinner full />;
-  if (isOperations) return <OperationsDashboard />;
+  if (isOperations || isOperationsManager) return <OperationsDashboard />;
   if (isAdTeam) return <AdTeamDashboard />;
   return isProcessor ? <ProcessorDashboard /> : <RequesterDashboard />;
 }
@@ -59,7 +59,7 @@ export default function AppRoutes() {
         <Route
           path="/ops/queue"
           element={
-            <ProtectedRoute allowedRoles={['Operations', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Operations', 'Operations Manager', 'Admin']}>
               <OperationsQueue />
             </ProtectedRoute>
           }
@@ -67,7 +67,7 @@ export default function AppRoutes() {
         <Route
           path="/ops/queue/:id"
           element={
-            <ProtectedRoute allowedRoles={['Operations', 'Admin']}>
+            <ProtectedRoute allowedRoles={['Operations', 'Operations Manager', 'Admin']}>
               <OperationsRequestDetails />
             </ProtectedRoute>
           }

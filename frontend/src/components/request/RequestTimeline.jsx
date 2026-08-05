@@ -9,7 +9,7 @@ export default function RequestTimeline({ history = [] }) {
         <li key={h.id} className="mb-6 ml-4">
           <div className="absolute w-2.5 h-2.5 bg-primary-500 rounded-full -left-[5px] mt-1.5 border border-white" />
           <p className="text-sm font-medium text-gray-800">
-            {h.oldStatus ? `${h.oldStatus} → ${h.newStatus}` : h.newStatus}
+            {h.oldStatus && h.oldStatus !== h.newStatus ? `${h.oldStatus} → ${h.newStatus}` : h.newStatus}
           </p>
           <p className="text-xs text-gray-500">
             {h.actor?.fullName || 'System'} · {formatDateTime(h.createdAt)}

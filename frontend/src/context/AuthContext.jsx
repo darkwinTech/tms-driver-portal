@@ -38,10 +38,13 @@ export function AuthProvider({ children }) {
 
   const isProcessor = user?.role === 'Processor' || user?.role === 'Admin';
   const isOperations = user?.role === 'Operations';
+  const isOperationsManager = user?.role === 'Operations Manager';
   const isAdTeam = user?.role === 'AD Team';
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isProcessor, isOperations, isAdTeam }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, isProcessor, isOperations, isOperationsManager, isAdTeam }}
+    >
       {children}
     </AuthContext.Provider>
   );

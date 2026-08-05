@@ -1,7 +1,7 @@
 
 export const REQUEST_TYPES = ['Create Driver', 'Modify Driver', 'Disable Driver'];
 
-export const USER_ROLES = ['Requester', 'Processor', 'Operations', 'AD Team', 'Admin'];
+export const USER_ROLES = ['Requester', 'Processor', 'Operations', 'Operations Manager', 'AD Team', 'Admin'];
 
 export const KSA_CITIES = [
   'Abha', 'Abqaiq', 'Abu Arish', 'Ahad Al Masarihah', 'Ahad Rafidah', 'Al Aflaj', 'Al Aqiq',

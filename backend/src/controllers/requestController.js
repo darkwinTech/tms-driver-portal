@@ -7,6 +7,7 @@ import {
   historyRepository,
   attachmentRepository,
   notificationRepository,
+  userRepository,
 } from '../data/index.js';
 import { hydrateRequestSummary, hydrateRequestFull } from '../utils/hydrate.js';
 import {
@@ -14,6 +15,7 @@ import {
   isDedicatedEndpointOnly,
   isRemarksRequired,
   OPERATIONS_PROFILE_FIELDS,
+  OPERATIONS_ACTIVE_STATUSES,
   driverProfileMissingFields,
 } from '../utils/workflow.js';
 import { isStaffRole } from '../utils/roles.js';
@@ -21,6 +23,7 @@ import { validateDriverRow, findDuplicateLicenseNumberIndexes } from '../utils/v
 import { generateRequestNumber } from '../utils/requestNumber.js';
 import { findOriginalDriver, findActiveDriversByLicenseNumber } from '../services/driverLookupService.js';
 import { sendServiceNowNotification } from '../services/serviceNowEmailService.js';
+import { buildSecurityReportPdf } from '../services/securityReportPdfService.js';
 import {
   buildTemplateBuffer,
   parseDriverExcelBuffer,
@@ -42,16 +45,30 @@ async function isAdStageVisible(row) {
   }
   return false;
 }
+// A plain Operations employee can only see/act on a request that is either
+// unclaimed (currentProcessorId === null) or claimed by them - whether that
+// claim happened via self-starting review or via the Manager's Assign
+// action, both write the same field. Once a request leaves the active
+// Operations stages (handed to AD Team, Completed, Rejected) the lock no
+// longer applies. The Operations Manager and Admin are never restricted.
+function canOperationsEmployeeAct(row, user) {
+  if (user.role !== 'Operations') return true;
+  if (!OPERATIONS_ACTIVE_STATUSES.includes(row.statusName)) return true;
+  return row.currentProcessorId === null || row.currentProcessorId === user.id;
+}
 // Shared visibility guard - owner-or-staff, plus the AD-stage check for the
-// AD Team. The reference mock leaves attachment/export endpoints unguarded;
-// this closes that gap by reusing the same check everywhere a request (or
-// something belonging to it) is read.
+// AD Team and the ownership lock for Operations. The reference mock leaves
+// attachment/export endpoints unguarded; this closes that gap by reusing the
+// same check everywhere a request (or something belonging to it) is read.
 async function assertRequestVisible(user, row) {
   if (!isStaffRole(user.role) && row.requesterId !== user.id) {
     throw new ApiError('You do not have access to this request', 403);
   }
   if (user.role === 'AD Team' && !(await isAdStageVisible(row))) {
     throw new ApiError('This request has not reached the AD Team stage yet', 403);
+  }
+  if (!canOperationsEmployeeAct(row, user)) {
+    throw new ApiError('This request is currently assigned to another Operations employee', 403);
   }
 }
 async function validateDrivers(drivers, { requireUsername, requireCreateFields, excludeRequestId } = {}) {
@@ -114,6 +131,9 @@ export async function getStats(req, res) {
     const all = await requestRepository.findAll();
     const flags = await Promise.all(all.map(isAdStageVisible));
     rows = all.filter((_, i) => flags[i]);
+  } else if (user.role === 'Operations') {
+    const all = await requestRepository.findAll();
+    rows = all.filter((r) => canOperationsEmployeeAct(r, user));
   } else if (isStaff) {
     rows = await requestRepository.findAll();
   } else {
@@ -158,6 +178,9 @@ export async function listRequests(req, res) {
   if (user.role === 'AD Team') {
     const flags = await Promise.all(rows.map(isAdStageVisible));
     rows = rows.filter((_, i) => flags[i]);
+  }
+  if (user.role === 'Operations') {
+    rows = rows.filter((r) => canOperationsEmployeeAct(r, user));
   }
   if (status) rows = rows.filter((r) => r.statusName === status);
   if (type) rows = rows.filter((r) => r.requestTypeName === type);
@@ -243,6 +266,9 @@ export async function createRequest(req, res) {
 export async function updateStatus(req, res) {
   const user = req.user;
   const row = await findRequestOr404(req.params.id);
+  if (!canOperationsEmployeeAct(row, user)) {
+    throw new ApiError('This request is currently assigned to another Operations employee', 403);
+  }
   const { status: targetStatus, remarks } = req.body;
   const currentStatusName = row.statusName;
   if (!isTransitionAllowed(row.requestTypeName, currentStatusName, targetStatus, user.role)) {
@@ -336,10 +362,41 @@ export async function updateStatus(req, res) {
   res.json(await hydrateRequestFull(updated));
 }
 // ---------------------------------------------------------------------------
+// The Operations Manager assigns/reassigns which Operations employee owns a
+// request (currentProcessorId) so that employee is the one who completes its
+// driver profiles. Role gate: requireRole('Operations Manager').
+export async function assignRequest(req, res) {
+  const row = await findRequestOr404(req.params.id);
+  if (!OPERATIONS_ACTIVE_STATUSES.includes(row.statusName)) {
+    throw new ApiError(`Cannot assign a request while it is "${row.statusName}"`);
+  }
+  const { assigneeId } = req.body;
+  if (!assigneeId) throw new ApiError('assigneeId is required');
+  const assignee = await userRepository.findById(assigneeId);
+  if (!assignee || assignee.role !== 'Operations') {
+    throw new ApiError('Requests can only be assigned to an Operations employee');
+  }
+  const now = new Date().toISOString();
+  await requestRepository.update(row.id, { currentProcessorId: assignee.id, updatedAt: now });
+  await historyRepository.create({
+    requestId: row.id,
+    oldStatus: row.statusName,
+    newStatus: row.statusName,
+    changedBy: req.user.id,
+    remarks: `Assigned to ${assignee.fullName} by ${req.user.fullName} (Operations Manager).`,
+    createdAt: now,
+  });
+  const updated = await requestRepository.findById(row.id);
+  res.json(await hydrateRequestFull(updated));
+}
+// ---------------------------------------------------------------------------
 // Operations fills in the requester-hidden profile fields for one driver
 // while the request is in Processing. Role gate: requireRole('Operations').
 export async function updateDriverProfile(req, res) {
   const row = await findRequestOr404(req.params.id);
+  if (!canOperationsEmployeeAct(row, req.user)) {
+    throw new ApiError('This request is currently assigned to another Operations employee', 403);
+  }
   if (row.statusName !== 'Processing – Operations Team') {
     throw new ApiError('Driver profiles can only be updated while the request is in Processing');
   }
@@ -366,6 +423,9 @@ export async function updateDriverProfile(req, res) {
 // ticket already created. Role gate: requireRole('Operations').
 export async function completeDriverProfiles(req, res) {
   const row = await findRequestOr404(req.params.id);
+  if (!canOperationsEmployeeAct(row, req.user)) {
+    throw new ApiError('This request is currently assigned to another Operations employee', 403);
+  }
   if (row.statusName !== 'Processing – Operations Team') {
     throw new ApiError('Driver profiles can only be completed while the request is in Processing');
   }
@@ -418,6 +478,43 @@ export async function completeDriverProfiles(req, res) {
   });
   const updated = await requestRepository.findById(row.id);
   res.json(await hydrateRequestFull(updated));
+}
+// ---------------------------------------------------------------------------
+// Lets Operations download the same "Security Report" PDF that would
+// otherwise only ever get emailed to the security team - Operations is also
+// security-adjacent and wants it directly once they've finished their part.
+// Each request type finishes its Operations part differently, so reuse
+// whichever existing field already marks that moment rather than adding new
+// state: Create Driver via completeDriverProfiles (driverProfilesCompletedAt),
+// Disable Driver via the Submitted -> AD Team Review accept in updateStatus
+// (rpaTriggeredAt), Modify Driver via the Submitted -> Completed accept in
+// updateStatus (completedDate - unambiguous for this type since Modify Driver
+// never goes through markComplete). None of these get set on the reject path,
+// so Rejected requests are excluded automatically.
+const SECURITY_REPORT_CATEGORIES = {
+  'Create Driver': 'Created',
+  'Modify Driver': 'Modified',
+  'Disable Driver': 'Disabled',
+};
+function isOperationsPartDone(row) {
+  if (row.requestTypeName === 'Create Driver') return Boolean(row.driverProfilesCompletedAt);
+  if (row.requestTypeName === 'Disable Driver') return Boolean(row.rpaTriggeredAt);
+  if (row.requestTypeName === 'Modify Driver') return Boolean(row.completedDate);
+  return false;
+}
+// Role gate: requireRole('Operations'). Visibility/ownership beyond that is
+// handled by assertRequestVisible, same as every other read endpoint.
+export async function downloadSecurityReportPdf(req, res) {
+  const row = await findRequestOr404(req.params.id);
+  await assertRequestVisible(req.user, row);
+  if (!isOperationsPartDone(row)) {
+    throw new ApiError('Operations has not finished acting on this request yet.');
+  }
+  const hydrated = await hydrateRequestFull(row);
+  const pdfBuffer = await buildSecurityReportPdf(hydrated, SECURITY_REPORT_CATEGORIES[row.requestTypeName]);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="security-report-${row.requestNumber}.pdf"`);
+  res.send(pdfBuffer);
 }
 // ---------------------------------------------------------------------------
 // "Mark as Complete": the AD Team's only action once a request reaches

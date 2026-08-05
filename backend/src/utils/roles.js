@@ -1,5 +1,9 @@
 export function isOperationsRole(roleName) {
-  return roleName === 'Operations' || roleName === 'Admin';
+  return roleName === 'Operations' || roleName === 'Operations Manager' || roleName === 'Admin';
+}
+
+export function isOperationsManagerRole(roleName) {
+  return roleName === 'Operations Manager' || roleName === 'Admin';
 }
 
 export function isAdTeamRole(roleName) {
@@ -7,5 +11,11 @@ export function isAdTeamRole(roleName) {
 }
 
 export function isStaffRole(roleName) {
-  return roleName === 'Processor' || roleName === 'Operations' || roleName === 'AD Team' || roleName === 'Admin';
+  return (
+    roleName === 'Processor' ||
+    roleName === 'Operations' ||
+    roleName === 'Operations Manager' ||
+    roleName === 'AD Team' ||
+    roleName === 'Admin'
+  );
 }

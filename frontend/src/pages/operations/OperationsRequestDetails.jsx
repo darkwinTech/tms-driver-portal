@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router';
-import { getRequest, updateStatus } from '../../api/requests.js';
+import { getRequest, updateStatus, assignRequest, downloadSecurityReportPdf } from '../../api/requests.js';
+import { listUsers } from '../../api/users.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 import StatusBadge from '../../components/common/StatusBadge.jsx';
 import Spinner from '../../components/common/Spinner.jsx';
 import DriverTable from '../../components/driver/DriverTable.jsx';
@@ -10,6 +12,27 @@ import DriverProfilePanel from '../../components/operations/DriverProfilePanel.j
 import Alert from '../../components/common/Alert.jsx';
 import Modal from '../../components/common/Modal.jsx';
 import { formatDate } from '../../utils/statusColors.js';
+
+// Statuses during which a request is still owned by Operations and can be
+// (re)assigned to a different Operations employee - mirrors the backend's
+// ASSIGNABLE_STATUSES in requestController.js.
+const ASSIGNABLE_STATUSES = [
+  'Submitted',
+  'Under Review – Operations Team',
+  'Processing – Operations Team',
+  'Returned to Requester',
+];
+
+// Mirrors the backend's isOperationsPartDone in requestController.js - each
+// request type finishes its Operations part at a different point, captured
+// by a different existing field.
+function isOperationsPartDone(request) {
+  const type = request.requestType?.name;
+  if (type === 'Create Driver') return Boolean(request.driverProfilesCompletedAt);
+  if (type === 'Disable Driver') return Boolean(request.rpaTriggeredAt);
+  if (type === 'Modify Driver') return Boolean(request.completedDate);
+  return false;
+}
 
 /**
  * Operations request details - the first stage of the review workflow.
@@ -53,17 +76,65 @@ const COMMENT_ACTIONS = {
 
 export default function OperationsRequestDetails() {
   const { id } = useParams();
+  const { isOperationsManager } = useAuth();
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [commentAction, setCommentAction] = useState(null); // 'return' | 'reject' | null
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState('');
 
+  const [operationsUsers, setOperationsUsers] = useState([]);
+  const [selectedAssignee, setSelectedAssignee] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState('');
+
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const [reportError, setReportError] = useState('');
+
   useEffect(() => {
-    getRequest(id).then((res) => setRequest(res.data)).finally(() => setLoading(false));
+    getRequest(id)
+      .then((res) => setRequest(res.data))
+      .catch((err) => setLoadError(err.response?.data?.message || 'Request not found.'))
+      .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!isOperationsManager) return;
+    listUsers('Operations').then((res) => setOperationsUsers(res.data));
+  }, [isOperationsManager]);
+
+  useEffect(() => {
+    setSelectedAssignee(request?.currentProcessor?.id ? String(request.currentProcessor.id) : '');
+  }, [request?.currentProcessor?.id]);
+
+  async function handleAssign() {
+    if (!selectedAssignee) return;
+    setAssigning(true);
+    setAssignError('');
+    try {
+      const res = await assignRequest(id, Number(selectedAssignee));
+      setRequest(res.data);
+    } catch (err) {
+      setAssignError(err.response?.data?.message || 'Assignment failed');
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleDownloadReport() {
+    setDownloadingReport(true);
+    setReportError('');
+    try {
+      await downloadSecurityReportPdf(id, `security-report-${request.requestNumber}.pdf`);
+    } catch (err) {
+      setReportError(err.response?.data?.message || 'Download failed');
+    } finally {
+      setDownloadingReport(false);
+    }
+  }
 
   async function runTransition(target, remarks) {
     setBusy(true);
@@ -97,7 +168,7 @@ export default function OperationsRequestDetails() {
   }
 
   if (loading) return <Spinner full />;
-  if (!request) return <p className="text-gray-500">Request not found.</p>;
+  if (!request) return <p className="text-gray-500">{loadError || 'Request not found.'}</p>;
 
   const statusName = request.status?.name;
   const requestTypeName = request.requestType?.name;
@@ -150,6 +221,44 @@ export default function OperationsRequestDetails() {
         )}
       </div>
 
+      {isOperationsManager && (
+        <section className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="font-medium text-gray-800 mb-1">Assign to Operations Employee</h3>
+          {ASSIGNABLE_STATUSES.includes(statusName) ? (
+            <>
+              <p className="text-sm text-gray-500 mb-3">
+                Choose which Operations employee should own this request and complete its driver profiles.
+              </p>
+              <Alert type="error">{assignError}</Alert>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedAssignee}
+                  onChange={(e) => setSelectedAssignee(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm min-w-[220px] focus:outline-none focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="">Unassigned</option>
+                  {operationsUsers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.fullName}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={assigning || !selectedAssignee || Number(selectedAssignee) === request.currentProcessor?.id}
+                  onClick={handleAssign}
+                  className="px-4 py-2 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {assigning ? 'Assigning...' : 'Assign'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">
+              This request has moved past Operations and can no longer be reassigned.
+            </p>
+          )}
+        </section>
+      )}
+
       <section className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-medium text-gray-800 mb-4">Driver Information ({request.drivers?.length || 0})</h3>
         <DriverTable
@@ -160,9 +269,17 @@ export default function OperationsRequestDetails() {
         />
       </section>
 
-      {/* Review actions */}
+      {/* Review actions - Operations Managers assign/reassign only; the
+          assigned Operations employee performs the actual review actions. */}
       <section className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-medium text-gray-800 mb-3">Review</h3>
+        {isOperationsManager ? (
+          <p className="text-sm text-gray-500">
+            Review actions are performed by the assigned Operations employee. Use the assignment control above to
+            assign or reassign this request.
+          </p>
+        ) : (
+        <>
         <Alert type="error">{error}</Alert>
 
         {statusName === 'Submitted' && requestTypeName === 'Modify Driver' && (
@@ -302,10 +419,27 @@ export default function OperationsRequestDetails() {
         {statusName === 'Completed' && (
           <p className="text-sm text-gray-500">This request is completed. No further action is required.</p>
         )}
+        </>
+        )}
       </section>
 
-      {statusName === 'Processing – Operations Team' && (
+      {statusName === 'Processing – Operations Team' && !isOperationsManager && (
         <DriverProfilePanel request={request} onUpdated={setRequest} />
+      )}
+
+      {isOperationsPartDone(request) && (
+        <section className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="font-medium text-gray-800 mb-3">Security Report</h3>
+          <Alert type="error">{reportError}</Alert>
+          <button
+            type="button"
+            disabled={downloadingReport}
+            onClick={handleDownloadReport}
+            className="px-4 py-2 rounded-md text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {downloadingReport ? 'Preparing...' : 'Download Security Report (PDF)'}
+          </button>
+        </section>
       )}
 
       <div className="grid md:grid-cols-2 gap-6">

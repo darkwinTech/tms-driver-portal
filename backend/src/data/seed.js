@@ -11,7 +11,9 @@ export function buildSeed() {
     { id: 3, employeeId: 'EMP003', fullName: 'IT TMS Processor', email: 'it.tms@asmo.com', department: 'IT Solutions', role: 'Processor', managerId: null, isActive: true },
     { id: 4, employeeId: 'EMP004', fullName: 'AD Team', email: 'ad.team@asmo.com', department: 'Active Directory', role: 'AD Team', managerId: null, isActive: true },
     { id: 5, employeeId: 'EMP005', fullName: 'System Admin', email: 'admin@asmo.com', department: 'IT Solutions', role: 'Admin', managerId: null, isActive: true },
-    { id: 6, employeeId: 'EMP006', fullName: 'Operations Team', email: 'operations@asmo.com', department: 'Operations', role: 'Operations', managerId: null, isActive: true },
+    { id: 6, employeeId: 'EMP006', fullName: 'Operations Team', email: 'operations@asmo.com', department: 'Operations', role: 'Operations', managerId: 7, isActive: true },
+    { id: 7, employeeId: 'EMP007', fullName: 'Operations Manager', email: 'operations.manager@asmo.com', department: 'Operations', role: 'Operations Manager', managerId: null, isActive: true },
+    { id: 8, employeeId: 'EMP008', fullName: 'Operations Team 2', email: 'operations2@asmo.com', department: 'Operations', role: 'Operations', managerId: 7, isActive: true },
   ];
 
   const requestTypes = ['Create Driver', 'Modify Driver', 'Disable Driver'];
@@ -132,7 +134,7 @@ export function buildSeed() {
   ];
 
   return {
-    nextIds: { user: 7, request: 8, driver: 10, history: 23, attachment: 1, notification: 6 },
+    nextIds: { user: 9, request: 8, driver: 10, history: 23, attachment: 1, notification: 6 },
     users,
     requestTypes,
     requestStatuses,

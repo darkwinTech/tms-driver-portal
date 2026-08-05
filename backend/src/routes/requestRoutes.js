@@ -21,6 +21,12 @@ router.put('/:id/resubmit', asyncHandler(requestController.resubmitRequest));
 router.patch('/:id/status', asyncHandler(requestController.updateStatus));
 
 router.patch(
+  '/:id/assign',
+  requireRole('Operations Manager'),
+  asyncHandler(requestController.assignRequest)
+);
+
+router.patch(
   '/:id/drivers/:driverId/profile',
   requireRole('Operations'),
   asyncHandler(requestController.updateDriverProfile)
@@ -29,6 +35,11 @@ router.post(
   '/:id/complete-driver-profiles',
   requireRole('Operations'),
   asyncHandler(requestController.completeDriverProfiles)
+);
+router.get(
+  '/:id/security-report',
+  requireRole('Operations', 'Operations Manager'),
+  asyncHandler(requestController.downloadSecurityReportPdf)
 );
 router.post('/:id/mark-complete', requireRole('AD Team'), asyncHandler(requestController.markComplete));
 
