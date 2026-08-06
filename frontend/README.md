@@ -19,7 +19,9 @@ Opens at `http://localhost:5173`.
 | --- | --- |
 | fedx@example.com | Requester |
 | hani.alturaiki@asmo.com | Requester |
-| operations@asmo.com | Operations |
+| operations.manager@asmo.com | Operations manager assigning requests |
+| operations@asmo.com | Operations employee 1 |
+| operations2@asmo.com | Operations employee 2 |
 | ad.team@asmo.com | AD Team |
 | it.tms@asmo.com | Processor |
 | admin@asmo.com | Admin |
