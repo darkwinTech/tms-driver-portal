@@ -1,5 +1,4 @@
 import dotenv from 'dotenv'
-import path from 'node:path'
 
 dotenv.config();
 
@@ -27,5 +26,4 @@ export const config = Object.freeze({
     smtpPass: process.env.SMTP_PASS || '',
     smtpFromAddress: process.env.SMTP_FROM_ADDRESS || 'noreply@asmo.com',
     securityReportRecipient: process.env.SECURITY_REPORT_EMAIL || 'cybersecurity-team@asmo.com',
-    uploadDir: path.resolve(process.cwd(), process.env.UPLOAD_DIR || './uploads')
 });

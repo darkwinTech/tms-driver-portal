@@ -1,20 +1,17 @@
-import crypto from 'node:crypto';
 import path from 'node:path';
 import multer from 'multer';
-import { config } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const ATTACHMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 const ATTACHMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
+// Kept in memory (not written to disk) so the file content lands directly on
+// the attachment record - once a real database is connected, this buffer is
+// what gets stored in the Attachment table's FileData column, inheriting
+// whatever DB-level encryption (TDE) is enabled there. No app-level crypto
+// needed here - see the encryption plan.
 export const attachmentUpload = multer({
-  storage: multer.diskStorage({
-    destination: config.uploadDir,
-    filename: (req, file, cb) => {
-      const uniqueName = `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname)}`;
-      cb(null, uniqueName);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 3 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).slice(1).toLowerCase();

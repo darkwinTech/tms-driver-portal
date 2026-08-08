@@ -122,7 +122,7 @@ BEGIN
 
         CONSTRAINT UQ_User_Email UNIQUE (Email),
         CONSTRAINT FK_User_Manager FOREIGN KEY (ManagerId) REFERENCES tms.User(Id),
-        CONSTRAINT CK_User_Role CHECK (Role IN ('Requester', 'Processor', 'Operations', 'AD Team', 'Admin')),
+        CONSTRAINT CK_User_Role CHECK (Role IN ('Requester', 'Processor', 'Operations', 'Operations Manager', 'AD Team', 'Admin')),
         CONSTRAINT CK_User_AuthProvider CHECK (AuthProvider IN ('Local', 'ADFS')),
         CONSTRAINT CK_User_PasswordHash_RequiredForLocal CHECK (
             (AuthProvider = 'Local' AND PasswordHash IS NOT NULL) OR AuthProvider <> 'Local'
@@ -285,7 +285,12 @@ BEGIN
         Id           INT IDENTITY(1,1) PRIMARY KEY,
         RequestId    INT NOT NULL,
         FileName     NVARCHAR(255) NOT NULL,
-        FilePath     NVARCHAR(500) NOT NULL,
+        -- File bytes live in the database (not the filesystem) so they inherit
+        -- Transparent Data Encryption once it's enabled on this database -
+        -- VARBINARY(MAX) is just the
+        -- correct type for a variable-length blob; the 3MB/PDF-JPG-PNG-only
+        -- upload limit is enforced by the application (multer), unchanged.
+        FileData     VARBINARY(MAX) NOT NULL,
         UploadedBy   INT NOT NULL,
         UploadedDate DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         DriverIndex  INT NULL,

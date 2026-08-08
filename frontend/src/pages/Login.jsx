@@ -65,12 +65,6 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        {/* <div className="mt-6 text-xs text-gray-400 border-t pt-4">
-          <p className="font-medium mb-1">Demo accounts (password: Password123!)</p>
-          <p>Requester: ahmed.alqabana@asmo.com</p>
-          <p>Processor: it.tms@asmo.com</p>
-        </div> */}
       </div>
     </div>
   );

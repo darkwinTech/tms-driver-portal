@@ -34,7 +34,10 @@ export async function hydrateRequestFull(reqRow) {
   ]);
 
   const attachments = await Promise.all(
-    attachmentRows.map(async (a) => ({ ...a, uploader: userSummary(await userRepository.findById(a.uploadedBy)) }))
+    attachmentRows.map(async ({ fileData, ...a }) => ({
+      ...a,
+      uploader: userSummary(await userRepository.findById(a.uploadedBy)),
+    }))
   );
 
   const history = await Promise.all(

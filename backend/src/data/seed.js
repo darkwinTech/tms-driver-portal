@@ -8,7 +8,6 @@ export function buildSeed() {
   const users = [
     { id: 1, employeeId: 'EMP001', fullName: 'FedX', email: 'fedx@example.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
     { id: 2, employeeId: 'EMP002', fullName: 'Hani Alturaiki', email: 'hani.alturaiki@asmo.com', department: 'Supply Chain & Logistics', role: 'Requester', managerId: null, isActive: true },
-    { id: 3, employeeId: 'EMP003', fullName: 'IT TMS Processor', email: 'it.tms@asmo.com', department: 'IT Solutions', role: 'Processor', managerId: null, isActive: true },
     { id: 4, employeeId: 'EMP004', fullName: 'AD Team', email: 'ad.team@asmo.com', department: 'Active Directory', role: 'AD Team', managerId: null, isActive: true },
     { id: 5, employeeId: 'EMP005', fullName: 'System Admin', email: 'admin@asmo.com', department: 'IT Solutions', role: 'Admin', managerId: null, isActive: true },
     { id: 6, employeeId: 'EMP006', fullName: 'Operations Team', email: 'operations@asmo.com', department: 'Operations', role: 'Operations', managerId: 7, isActive: true },

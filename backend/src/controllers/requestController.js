@@ -1,4 +1,3 @@
-import path from 'node:path';
 import mime from 'mime-types';
 import { ApiError } from '../utils/ApiError.js';
 import {
@@ -648,13 +647,16 @@ export async function uploadAttachment(req, res) {
   const attachment = await attachmentRepository.create({
     requestId: row.id,
     fileName: req.file.originalname,
-    filePath: req.file.path,
+    fileData: req.file.buffer,
     uploadedBy: req.user.id,
     uploadedDate: new Date().toISOString(),
     driverIndex: req.body.driverIndex !== undefined && req.body.driverIndex !== '' ? Number(req.body.driverIndex) : null,
     docType: req.body.docType || null,
   });
-  res.status(201).json({ ...attachment, uploader: { id: req.user.id, fullName: req.user.fullName } });
+  // fileData is the raw file bytes - never include it in a JSON response,
+  // only in the dedicated preview/download endpoints below.
+  const { fileData, ...attachmentSummary } = attachment;
+  res.status(201).json({ ...attachmentSummary, uploader: { id: req.user.id, fullName: req.user.fullName } });
 }
 async function findAttachmentOr404(requestId, attachmentId) {
   const row = await findRequestOr404(requestId);
@@ -667,14 +669,16 @@ async function findAttachmentOr404(requestId, attachmentId) {
 export async function previewAttachment(req, res) {
   const { row, attachment } = await findAttachmentOr404(req.params.id, req.params.attachmentId);
   await assertRequestVisible(req.user, row);
-  res.setHeader('Content-Type', mime.lookup(attachment.filePath) || 'application/octet-stream');
+  res.setHeader('Content-Type', mime.lookup(attachment.fileName) || 'application/octet-stream');
   res.setHeader('Content-Disposition', 'inline');
-  res.sendFile(path.resolve(attachment.filePath));
+  res.send(attachment.fileData);
 }
 export async function downloadAttachment(req, res) {
   const { row, attachment } = await findAttachmentOr404(req.params.id, req.params.attachmentId);
   await assertRequestVisible(req.user, row);
-  res.download(path.resolve(attachment.filePath), attachment.fileName);
+  res.setHeader('Content-Type', mime.lookup(attachment.fileName) || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${attachment.fileName}"`);
+  res.send(attachment.fileData);
 }
 // ---------------------------------------------------------------------------
 export async function downloadExcelTemplate(req, res) {
